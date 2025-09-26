@@ -6,6 +6,12 @@ __pycache__/
 # C extensions
 *.so
 
+exam/migrations/
+face/migrations/
+region/migrations/
+users/migrations/
+
+
 static/assets/
 static/
 .idea/
