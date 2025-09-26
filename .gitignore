@@ -10,11 +10,6 @@ static/assets/
 static/
 .idea/
 
-exam/migrations/
-region/migrations/
-face/migrations/
-users/migrations/
-
 env
 .env
 
