@@ -45,7 +45,6 @@ class FaceEmbedder:
         if detected_faces:
             face = detected_faces[0]
             embedding = face.embedding
-            print(f"Embedding: {type(embedding)}")
             return embedding
         return None
 

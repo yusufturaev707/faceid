@@ -1,4 +1,5 @@
 from concurrent.futures import ProcessPoolExecutor
+import datetime
 
 from face.face_embedder import FaceEmbedder
 from core.const import default_embedding, default_image64
@@ -43,23 +44,18 @@ def process_student(student_data: dict):
 
         # 1️⃣ Rasm mavjud emas — pasport ma'lumotlari orqali olish
         if not img_base64:
-            logger.info("# 1️⃣ Rasm mavjud emas — pasport ma'lumotlari orqali olish")
             ps_num = ps_num[-7:].zfill(7)
 
             img_base64 = get_image_from_personal_info(imei, f"{ps_ser}{ps_num}")
 
             if not img_base64:
-                logger.warning("Rasm kelmadi")
                 is_image = False
                 img_base64 = str(default_image64).replace("\n", "")
             else:
                 if not face_embedder.validate_base64(img_base64):
                     is_image = False
-                    logger.warning("Invalid Base64 string. Must start with a valid image data URI prefix.")
-                logger.info("Rasm valid")
                 img_rgb = face_embedder.decode_base64(img_base64)
                 embedding = face_embedder.get_embedding(img_rgb)
-                logger.info(f"{type(embedding)}")
                 if embedding is None:
                     is_face = False
                 else:
@@ -67,15 +63,11 @@ def process_student(student_data: dict):
 
         # 2️⃣ Rasm mavjud — embedding olish
         else:
-            logger.info("# 2️⃣ Rasm mavjud — embedding olish")
             try:
                 if not face_embedder.validate_base64(img_base64):
                     is_image = False
-                    logger.error("Invalid Base64 string. Must start with a valid image data URI prefix.")
-
                 img_rgb = face_embedder.decode_base64(img_base64)
                 embedding = face_embedder.get_embedding(img_rgb)
-                logger.info(f"{type(embedding)}")
                 if embedding is None:
                     is_face = False
                 else:
@@ -106,7 +98,7 @@ def save_users_to_db(users):
         if not users:
             return
         Student.objects.bulk_update(
-            users, ['embedding', 'img_b64', 'is_face', 'is_image'], batch_size=BATCH_SIZE
+            users, ['embedding', 'img_b64', 'is_face', 'is_image', 'updated_at'], batch_size=BATCH_SIZE
         )
     except Exception as e:
         logger.error(f"save_users_to_db error: {e}")
@@ -117,10 +109,8 @@ def get_students_in_bulk(ids):
 
 
 def main_worker(student_queryset):
-    """Synchronous version that can be called from Django admin"""
     try:
         max_workers = 20
-
         student_data_list = [
             {
                 "id": s.id,
@@ -131,26 +121,24 @@ def main_worker(student_queryset):
             }
             for s in student_queryset
         ]
-        logger.info("Processing students...")
 
-        # Use ProcessPoolExecutor synchronously
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            logger.info("Pooling...")
             results = list(executor.map(process_student, student_data_list))
 
-        # Filter out None results
         results = [r for r in results if r]
 
         ids = [r["id"] for r in results]
         students_map = get_students_in_bulk(ids)
 
         users = []
+        current_time = datetime.datetime.now()
         for r in results:
             student = students_map[r["id"]]
             student.embedding = r["embedding"]
             student.img_b64 = r["img_b64"]
             student.is_image = r["is_image"]
             student.is_face = r["is_face"]
+            student.updated_at = current_time
             users.append(student)
 
         save_users_to_db(users)
