@@ -4,6 +4,22 @@ from face.face_embedder import FaceEmbedder
 from core.const import default_embedding, default_image64
 from exam.models import Student
 from core.utils import get_image_from_personal_info
+import logging
+import sys
+
+# Logger yaratish
+logger = logging.getLogger("face_worker")
+logger.setLevel(logging.INFO)
+
+# Console handler
+ch = logging.StreamHandler(sys.stdout)
+ch.setLevel(logging.INFO)
+
+# Formatter
+formatter = logging.Formatter("%(asctime)s | %(processName)s | %(levelname)s | %(message)s")
+ch.setFormatter(formatter)
+
+logger.addHandler(ch)
 
 API_URL_CEFR = "http://stat.uzbmb.uz/stat/cefr-face/index?e_date={}&page={}"
 API_URL_NATIONAL = "http://stat.uzbmb.uz/stat/national-face/index?e_date={}&page={}"
@@ -27,23 +43,23 @@ def process_student(student_data: dict):
 
         # 1️⃣ Rasm mavjud emas — pasport ma'lumotlari orqali olish
         if not img_base64:
-            print("# 1️⃣ Rasm mavjud emas — pasport ma'lumotlari orqali olish")
+            logger.info("# 1️⃣ Rasm mavjud emas — pasport ma'lumotlari orqali olish")
             ps_num = ps_num[-7:].zfill(7)
 
             img_base64 = get_image_from_personal_info(imei, f"{ps_ser}{ps_num}")
 
             if not img_base64:
-                print("Rasm kelmadi")
+                logger.warning("Rasm kelmadi")
                 is_image = False
                 img_base64 = str(default_image64).replace("\n", "")
             else:
                 if not face_embedder.validate_base64(img_base64):
                     is_image = False
-                    print("Invalid Base64 string. Must start with a valid image data URI prefix.")
-                print("Rasm valid")
+                    logger.warning("Invalid Base64 string. Must start with a valid image data URI prefix.")
+                logger.info("Rasm valid")
                 img_rgb = face_embedder.decode_base64(img_base64)
                 embedding = face_embedder.get_embedding(img_rgb)
-                print(type(embedding))
+                logger.info(f"{type(embedding)}")
                 if embedding is None:
                     is_face = False
                 else:
@@ -51,20 +67,21 @@ def process_student(student_data: dict):
 
         # 2️⃣ Rasm mavjud — embedding olish
         else:
-            print("# 2️⃣ Rasm mavjud — embedding olish")
+            logger.info("# 2️⃣ Rasm mavjud — embedding olish")
             try:
                 if not face_embedder.validate_base64(img_base64):
                     is_image = False
-                    print("Invalid Base64 string. Must start with a valid image data URI prefix.")
+                    logger.error("Invalid Base64 string. Must start with a valid image data URI prefix.")
 
                 img_rgb = face_embedder.decode_base64(img_base64)
                 embedding = face_embedder.get_embedding(img_rgb)
+                logger.info(f"{type(embedding)}")
                 if embedding is None:
                     is_face = False
                 else:
                     face_embedding = face_embedder.numpy_to_pgvector(embedding)
             except Exception as e:
-                print(f"[process_student] Base64 konvertatsiyada xato: {imei}: {e}")
+                logger.error(f"[process_student] Base64 konvertatsiyada xato: {imei}: {e}")
                 is_image = False
 
         return {
@@ -76,7 +93,7 @@ def process_student(student_data: dict):
         }
 
     except Exception as e:
-        print(f"[process_student] Umumiy xatolik: {student_data.get('imei')}: {e}")
+        logger.error(f"[process_student] Umumiy xatolik: {student_data.get('imei')}: {e}")
         return None
 
 
@@ -92,7 +109,7 @@ def save_users_to_db(users):
             users, ['embedding', 'img_b64', 'is_face', 'is_image'], batch_size=BATCH_SIZE
         )
     except Exception as e:
-        print(f"save_users_to_db error: {e}")
+        logger.error(f"save_users_to_db error: {e}")
 
 
 def get_students_in_bulk(ids):
@@ -114,11 +131,11 @@ def main_worker(student_queryset):
             }
             for s in student_queryset
         ]
-        print("Processing students...")
+        logger.info("Processing students...")
 
         # Use ProcessPoolExecutor synchronously
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            print("Pooling...")
+            logger.info("Pooling...")
             results = list(executor.map(process_student, student_data_list))
 
         # Filter out None results
@@ -137,7 +154,7 @@ def main_worker(student_queryset):
             users.append(student)
 
         save_users_to_db(users)
-        print(f"Successfully processed {len(users)} students")
+        logger.info(f"Successfully processed {len(users)} students")
 
     except Exception as e:
-        print(f"main_worker error: {e}")
+        logger.error(f"main_worker error: {e}")
