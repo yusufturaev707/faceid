@@ -1,13 +1,9 @@
 import time
-
-from asgiref.sync import async_to_sync
 from django.contrib import admin, messages
-
 from exam.models import Student
 from face.models import GenerateFaceExam
 from face.services import main_worker
 from region.models import Region
-from face.views import generate_face_view
 
 
 @admin.action(description="Generation Face")
@@ -28,7 +24,7 @@ def generate_face_encode(self, request, queryset):
                     continue
                 try:
                     print(f"COUNT {len(student_queryset)}")
-                    async_to_sync(main_worker)(student_queryset)
+                    main_worker(student_queryset)
                     self.message_user(request, f"Processed {student_queryset.count} students", level=messages.SUCCESS)
                 except Exception as e:
                     print(f"async_to_sync error: {e}")
@@ -46,10 +42,6 @@ def generate_face_encode(self, request, queryset):
 
 @admin.register(GenerateFaceExam)
 class GenerateFaceExamAdmin(admin.ModelAdmin):
-    def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
-        # Views funksiyasini chaqiring
-        generate_face_view(request, obj.pk)
     list_display = ('id', 'exam', 'exam__start_date', 'exam__finish_date', 'exam__sm_count', 'exam__total_taker', 'exam__is_finished', 'exam__status',)
     list_per_page = 50
 

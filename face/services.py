@@ -1,5 +1,3 @@
-import asyncio
-from asgiref.sync import sync_to_async
 from concurrent.futures import ProcessPoolExecutor
 
 from face.face_embedder import FaceEmbedder
@@ -13,7 +11,6 @@ API_URL_IIV = "https://api-iiv.uzbmb.uz/api/get-iiv-candidates/?test_day={}&page
 HEADERS = {'Authorization': 'Token 655e34da70cf385dffae9be6f24edf9443bfbf1e'}
 
 BATCH_SIZE = 500
-
 
 
 def process_student(student_data: dict):
@@ -78,7 +75,6 @@ def process_student(student_data: dict):
         return None
 
 
-@sync_to_async
 def save_users_to_db(users):
     try:
         if not users:
@@ -94,42 +90,49 @@ def save_users_to_db(users):
         print(f"save_users_to_db error: {e}")
 
 
-async def main_worker(student_queryset):
-    print(f"Processing {len(student_queryset)} students")
-    loop = asyncio.get_running_loop()
-    print(1)
-    max_workers = 4
-    print(2)
+def get_students_in_bulk(ids):
+    return Student.objects.in_bulk(ids)
 
-    student_data_list = [
-        {
-            "id": s.id,
-            "imei": s.imei,
-            "img_b64": s.img_b64,
-            "ps_ser": s.ps_ser,
-            "ps_number": s.ps_number
-        }
-        for s in student_queryset
-    ]
-    print(3)
-    with ProcessPoolExecutor(max_workers=max_workers) as pool:
-        print("Pooling...")
-        tasks = [
-            loop.run_in_executor(pool, process_student, student)
-            for student in student_data_list
+
+def main_worker(student_queryset):
+    """Synchronous version that can be called from Django admin"""
+    try:
+        max_workers = 20
+
+        student_data_list = [
+            {
+                "id": s.id,
+                "imei": s.imei,
+                "img_b64": s.img_b64,
+                "ps_ser": s.ps_ser,
+                "ps_number": s.ps_number
+            }
+            for s in student_queryset
         ]
-        results = await asyncio.gather(*tasks)
+        print("Processing students...")
 
-        # None bo‘lmaganlarni olish
+        # Use ProcessPoolExecutor synchronously
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            print("Pooling...")
+            results = list(executor.map(process_student, student_data_list))
+
+        # Filter out None results
         results = [r for r in results if r]
 
-        # ORM obyektlarini yangilash
+        ids = [r["id"] for r in results]
+        students_map = get_students_in_bulk(ids)
+
         users = []
         for r in results:
-            student = Student.objects.get(pk=r["id"])
+            student = students_map[r["id"]]
             student.embedding = r["embedding"]
             student.img_b64 = r["img_b64"]
             student.is_image = r["is_image"]
             student.is_face = r["is_face"]
             users.append(student)
-        await save_users_to_db(users)
+
+        save_users_to_db(users)
+        print(f"Successfully processed {len(users)} students")
+
+    except Exception as e:
+        print(f"main_worker error: {e}")
