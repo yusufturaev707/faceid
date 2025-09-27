@@ -1,12 +1,13 @@
 from concurrent.futures import ProcessPoolExecutor
-import datetime
-
+from django.db import transaction
+from django.utils import timezone
 from face.face_embedder import FaceEmbedder
 from core.const import default_embedding, default_image64
 from exam.models import Student
 from core.utils import get_image_from_personal_info
 import logging
 import sys
+
 
 # Logger yaratish
 logger = logging.getLogger("face_worker")
@@ -22,13 +23,7 @@ ch.setFormatter(formatter)
 
 logger.addHandler(ch)
 
-API_URL_CEFR = "http://stat.uzbmb.uz/stat/cefr-face/index?e_date={}&page={}"
-API_URL_NATIONAL = "http://stat.uzbmb.uz/stat/national-face/index?e_date={}&page={}"
-API_URL_IIV = "https://api-iiv.uzbmb.uz/api/get-iiv-candidates/?test_day={}&page={}"
-HEADERS = {'Authorization': 'Token 655e34da70cf385dffae9be6f24edf9443bfbf1e'}
-
 BATCH_SIZE = 500
-
 
 def process_student(student_data: dict):
     try:
@@ -88,7 +83,7 @@ def process_student(student_data: dict):
         logger.error(f"[process_student] Umumiy xatolik: {student_data.get('imei')}: {e}")
         return None
 
-
+@transaction.atomic
 def save_users_to_db(users):
     try:
         if not users:
@@ -131,7 +126,7 @@ def main_worker(student_queryset):
         students_map = get_students_in_bulk(ids)
 
         users = []
-        current_time = datetime.datetime.now()
+        current_time = timezone.now()
         for r in results:
             student = students_map[r["id"]]
             student.embedding = r["embedding"]

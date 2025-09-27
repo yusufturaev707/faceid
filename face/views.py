@@ -1,5 +1,3 @@
-from asgiref.sync import sync_to_async
-from django.http import JsonResponse
 from rest_framework import viewsets, permissions, status
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import action
