@@ -34,8 +34,6 @@ class FaceEmbedder:
     def numpy_to_pgvector(embedding: np.ndarray) -> list:
         if isinstance(embedding, list):
             embedding = np.array(embedding, dtype=np.float32)
-        if not isinstance(embedding, np.ndarray):
-            raise TypeError(f"Embedding {type(embedding)} tipida, numpy.ndarray kutilgan")
         return embedding.tolist()
 
     @staticmethod
@@ -47,6 +45,7 @@ class FaceEmbedder:
         if detected_faces:
             face = detected_faces[0]
             embedding = face.embedding
+            print(f"Embedding: {type(embedding)}")
             return embedding
         return None
 
