@@ -1,5 +1,3 @@
-from asgiref.sync import sync_to_async
-from django.http import JsonResponse
 from rest_framework import viewsets, permissions, status
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import action
@@ -13,44 +11,8 @@ from django.contrib.auth import authenticate, login
 
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 from tutorial.quickstart.serializers import UserSerializer
-
-from exam.models import Student
 from face.face_embedder import FaceEmbedder
-from face.models import GenerateFaceExam
-from face.services import main_worker
-from region.models import Region
 from users.models import User
-
-def get_students_sync(exam, test_date, region):
-    """Sync funksiya - ORM operatsiyalari uchun"""
-    return list(Student.objects.filter(
-        exam=exam,
-        test_day=test_date.strip(),
-        region=region
-    ).only('id', 'embedding', 'is_face', 'is_image', 'img_b64'))
-
-def get_regions_sync():
-    """Regionlarni olish uchun sync funksiya"""
-    return list(Region.objects.all().order_by('number'))
-
-async def generate_face_view(request, pk):
-    obj = await sync_to_async(GenerateFaceExam.objects.get)(pk=pk)
-    test_dates = ['23.09.2025', '24.09.2025']
-    region_list = await sync_to_async(get_regions_sync)()
-
-    for test_date in test_dates:
-        for region in region_list:
-            student_queryset = await sync_to_async(get_students_sync)(
-                obj.exam, test_date, region
-            )
-            if len(student_queryset) == 0:
-                continue
-            try:
-                print(f"COUNT {len(student_queryset)}")
-                await main_worker(student_queryset) # async main_worker()
-            except Exception as e:
-                print(f"async_to_sync error: {e}")
-    return JsonResponse({"ok": True})
 
 class LoginView(APIView):
     permission_classes = [AllowAny]

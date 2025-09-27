@@ -94,42 +94,100 @@ def save_users_to_db(users):
         print(f"save_users_to_db error: {e}")
 
 
+@sync_to_async
+def get_students_in_bulk(ids):
+    return Student.objects.in_bulk(ids)
+
+
 async def main_worker(student_queryset):
-    print(f"Processing {len(student_queryset)} students")
-    loop = asyncio.get_running_loop()
-    print(1)
-    max_workers = 4
-    print(2)
+    """Modified async version that works with async_to_sync"""
+    try:
+        max_workers = 4
 
-    student_data_list = [
-        {
-            "id": s.id,
-            "imei": s.imei,
-            "img_b64": s.img_b64,
-            "ps_ser": s.ps_ser,
-            "ps_number": s.ps_number
-        }
-        for s in student_queryset
-    ]
-    print(3)
-    with ProcessPoolExecutor(max_workers=max_workers) as pool:
-        print("Pooling...")
-        tasks = [
-            loop.run_in_executor(pool, process_student, student)
-            for student in student_data_list
+        student_data_list = [
+            {
+                "id": s.id,
+                "imei": s.imei,
+                "img_b64": s.img_b64,
+                "ps_ser": s.ps_ser,
+                "ps_number": s.ps_number
+            }
+            for s in student_queryset
         ]
-        results = await asyncio.gather(*tasks)
+        print("Processing students...")
 
-        # None bo‘lmaganlarni olish
+        # Run in thread pool instead of process pool to avoid event loop conflicts
+        import concurrent.futures
+        import threading
+
+        def run_process_in_thread():
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                return list(executor.map(process_student, student_data_list))
+
+        # Run the process pool in a separate thread
+        loop = asyncio.get_event_loop()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as thread_executor:
+            results = await loop.run_in_executor(thread_executor, run_process_in_thread)
+
+        # Filter out None results
         results = [r for r in results if r]
 
-        # ORM obyektlarini yangilash
+        ids = [r["id"] for r in results]
+        students_map = await get_students_in_bulk(ids)
+
         users = []
         for r in results:
-            student = Student.objects.get(pk=r["id"])
+            student = students_map[r["id"]]
             student.embedding = r["embedding"]
             student.img_b64 = r["img_b64"]
             student.is_image = r["is_image"]
             student.is_face = r["is_face"]
             users.append(student)
+
         await save_users_to_db(users)
+        print(f"Successfully processed {len(users)} students")
+
+    except Exception as e:
+        print(f"main_worker error: {e}")
+
+# async def main_worker(student_queryset):
+#     try:
+#         loop = asyncio.get_running_loop()
+#         max_workers = 4
+#
+#         student_data_list = [
+#             {
+#                 "id": s.id,
+#                 "imei": s.imei,
+#                 "img_b64": s.img_b64,
+#                 "ps_ser": s.ps_ser,
+#                 "ps_number": s.ps_number
+#             }
+#             for s in student_queryset
+#         ]
+#         print(3)
+#         with ProcessPoolExecutor(max_workers=max_workers) as pool:
+#             print("Pooling...")
+#             tasks = [
+#                 loop.run_in_executor(pool, process_student, student)
+#                 for student in student_data_list
+#             ]
+#             results = await asyncio.gather(*tasks)
+#
+#             # None bo‘lmaganlarni olish
+#         results = [r for r in results if r]
+#
+#         ids = [r["id"] for r in results]
+#         students_map = await get_students_in_bulk(ids)
+#
+#         users = []
+#         for r in results:
+#             student = students_map[r["id"]]
+#             student.embedding = r["embedding"]
+#             student.img_b64 = r["img_b64"]
+#             student.is_image = r["is_image"]
+#             student.is_face = r["is_face"]
+#             users.append(student)
+#         await save_users_to_db(users)
+#     except Exception as e:
+#         print(f"main_worker error: {e}")
