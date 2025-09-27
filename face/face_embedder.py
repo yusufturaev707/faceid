@@ -43,7 +43,7 @@ class FaceEmbedder:
         if detected_faces:
             face = detected_faces[0]
             embedding = face.embedding
-            return embedding
+            return embedding[0]
         return None
 
     @staticmethod
