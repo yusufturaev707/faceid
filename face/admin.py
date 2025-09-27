@@ -25,7 +25,7 @@ def generate_face_encode(self, request, queryset):
                 try:
                     print(f"COUNT {len(student_queryset)}")
                     main_worker(student_queryset)
-                    self.message_user(request, f"Processed {student_queryset.count} students", level=messages.SUCCESS)
+                    self.message_user(request, f"Processed {len(student_queryset)} students", level=messages.SUCCESS)
                 except Exception as e:
                     print(f"async_to_sync error: {e}")
                 time.sleep(5)

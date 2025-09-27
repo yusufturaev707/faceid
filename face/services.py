@@ -27,19 +27,23 @@ def process_student(student_data: dict):
 
         # 1️⃣ Rasm mavjud emas — pasport ma'lumotlari orqali olish
         if not img_base64:
+            print("# 1️⃣ Rasm mavjud emas — pasport ma'lumotlari orqali olish")
             ps_num = ps_num[-7:].zfill(7)
 
             img_base64 = get_image_from_personal_info(imei, f"{ps_ser}{ps_num}")
 
             if not img_base64:
+                print("Rasm kelmadi")
                 is_image = False
                 img_base64 = str(default_image64).replace("\n", "")
             else:
                 if not face_embedder.validate_base64(img_base64):
                     is_image = False
                     print("Invalid Base64 string. Must start with a valid image data URI prefix.")
+                print("Rasm valid")
                 img_rgb = face_embedder.decode_base64(img_base64)
                 embedding = face_embedder.get_embedding(img_rgb)
+                print(type(embedding))
                 if embedding is None:
                     is_face = False
                 else:
@@ -47,6 +51,7 @@ def process_student(student_data: dict):
 
         # 2️⃣ Rasm mavjud — embedding olish
         else:
+            print("# 2️⃣ Rasm mavjud — embedding olish")
             try:
                 if not face_embedder.validate_base64(img_base64):
                     is_image = False
