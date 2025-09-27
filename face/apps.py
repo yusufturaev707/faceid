@@ -12,7 +12,7 @@ class FaceConfig(AppConfig):
         if not hasattr(settings, 'FACE_ANALYSIS_MODEL') or settings.FACE_ANALYSIS_MODEL is None:
             try:
                 settings.FACE_ANALYSIS_MODEL = FaceAnalysis(providers=['CPUExecutionProvider'])
-                settings.FACE_ANALYSIS_MODEL.prepare(ctx_id=0, det_size=(640, 640))
+                settings.FACE_ANALYSIS_MODEL.prepare(ctx_id=0, det_size=(800, 800), det_thresh=0.4)
             except Exception as e:
                 print(f"Error loading FaceAnalysis model: {e}")
                 settings.FACE_ANALYSIS_MODEL = None
