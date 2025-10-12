@@ -51,7 +51,7 @@ class Exam(BaseModel):
 
 class Student(BaseModel):
     exam = models.ForeignKey("exam.Exam", on_delete=models.SET_NULL, blank=True, null=True)
-    region = models.ForeignKey("region.Region", on_delete=models.SET_NULL, blank=True, null=True)
+    zone = models.ForeignKey("region.Zone", on_delete=models.SET_NULL, blank=True, null=True)
     last_name = models.CharField(max_length=255)
     first_name = models.CharField(max_length=255)
     middle_name = models.CharField(max_length=255)

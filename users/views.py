@@ -35,7 +35,7 @@ class LoginView(APIView):
                                                      "is_active": user.is_active}}}, status=status.HTTP_423_LOCKED)
 
             # Eski tokenlarni o'chirish
-            OutstandingToken.objects.filter(user=user).delete()
+            # OutstandingToken.objects.filter(user=user).delete()
             refresh = RefreshToken.for_user(user)
 
             return Response({"success": True, "message": "Success",
@@ -47,9 +47,11 @@ class LoginView(APIView):
                                      "id": user.id,
                                      "username": user.username,
                                      "is_active": user.is_active,
-                                     "region": {
-                                         "name": user.region.name if user.region else None,
-                                         "number": user.region.number if user.region else None,
+                                     "zone": {
+                                         "name": user.zone.name if user.zone else None,
+                                         "number": user.zone.number if user.zone else None,
+                                         "region_number": user.zone.region.number if user.zone else None,
+                                         "region_name": user.zone.region.name if user.zone else None,
                                      },
                                  }
                              }}, status=status.HTTP_200_OK)

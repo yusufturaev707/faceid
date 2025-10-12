@@ -88,6 +88,7 @@ class Computer(BaseModel):
     mac_address = models.CharField(max_length=255, unique=True, blank=True, null=True)
     username = models.CharField(max_length=255, blank=True, null=True)
     password = models.CharField(max_length=255, blank=True, null=True)
+    is_loaded = models.BooleanField(default=False)
 
 
     def __str__(self):

@@ -13,6 +13,8 @@ urlpatterns += [
     path('admin/', admin.site.urls),
     path('api/v1/', include('users.urls')),
     path('api/v1/', include('face.urls')),
+    path('api/v1/', include('exam.urls')),
+    path('api/v1/', include('region.urls')),
 ]
 
 urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

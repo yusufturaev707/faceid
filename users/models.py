@@ -29,7 +29,7 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     is_superuser = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     telegram_id = models.CharField(max_length=20, blank=True, null=True, unique=True)
-    region = models.ForeignKey('region.Region', on_delete=models.SET_NULL, blank=True, null=True)
+    zone = models.ForeignKey('region.Zone', on_delete=models.SET_NULL, blank=True, null=True)
     role = models.ForeignKey('users.Role', on_delete=models.SET_NULL, blank=True, null=True)
 
     objects = UserManager()
