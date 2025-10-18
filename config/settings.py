@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "django_filters",
     "pgvector.django",
+    "import_export",
 
     #Apps
     'face.apps.FaceConfig',
