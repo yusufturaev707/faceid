@@ -90,6 +90,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             return Response({'message': f"{e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+
     @action(methods=['get'], detail=False)
     def get_exam_name(self, request):
         exam_id = request.query_params.get('exam_id')

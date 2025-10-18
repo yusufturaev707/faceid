@@ -1,11 +1,12 @@
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.contrib.auth.models import PermissionsMixin
+from auditlog.registry import auditlog
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from pgvector.django import VectorField
 
 from users.user_manager import UserManager
 from core.models.base import BaseModel
-
 
 
 class Role(BaseModel):
@@ -49,40 +50,5 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
         db_table = 'user'
 
 
-class UserLog(BaseModel):
-    ACTION_CHOICES = [
-        ('CREATE', 'Yaratish'),
-        ('UPDATE', 'Tahrirlash'),
-        ('DELETE', 'O\'chirish'),
-        ('VIEW', 'Ko\'rish'),
-        ('LOGIN', 'Kirish'),
-        ('LOGOUT', 'Chiqish'),
-        ('DOWNLOAD', 'Yuklab olish'),
-    ]
-
-    STATUS_CHOICES = [
-        ('SUCCESS', 'Success'),
-        ('FAILED', 'Failed'),
-    ]
-
-    user = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='action_logs')
-    user_role = models.CharField(max_length=50, blank=True, null=True)
-    model_name = models.CharField(max_length=100)
-    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
-    object_id = models.IntegerField()  # Mutatali objectning ID si
-    old_value = models.JSONField(null=True, blank=True)  # O'zgarishdan oldin
-    new_value = models.JSONField(null=True, blank=True)  # O'zgarishdan keyin
-    ip_address = models.GenericIPAddressField()
-    user_agent = models.TextField()
-    timestamp = models.DateTimeField(auto_now_add=True)
-    status = models.CharField(max_length=20, default='SUCCESS', choices=STATUS_CHOICES)
-
-    class Meta:
-        db_table = 'user_log'
-        indexes = [
-            models.Index(fields=['user', 'timestamp']),
-            models.Index(fields=['action', 'timestamp']),
-        ]
-
-    def __str__(self):
-        return f"{self.user_role} {self.user.username} - {self.action} - {self.model_name}"
+auditlog.register(Role)
+auditlog.register(User)

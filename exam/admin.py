@@ -1,5 +1,18 @@
 from django.contrib import admin
-from exam.models import Exam, Test, Status, Student
+from auditlog.admin import LogEntryAdmin
+from auditlog.models import LogEntry
+from exam.models import Exam, Test, ExamState, Student, Shift, StudentPsData, StudentLog, ExamShift, Reason, Cheating, \
+    StudentBlacklist
+
+
+class ExamLogEntryAdmin(LogEntryAdmin):
+    list_display = ['created', 'resource_url', 'action', 'actor', 'msg_short']
+    list_filter = ['action', 'content_type', 'timestamp']
+    search_fields = ['object_repr', 'changes', 'actor__username']
+
+# Eski LogEntry admin ni o'chirish va yangisini qo'shish
+admin.site.unregister(LogEntry)
+admin.site.register(LogEntry, ExamLogEntryAdmin)
 
 
 @admin.register(Test)
@@ -10,9 +23,25 @@ class TestAdmin(admin.ModelAdmin):
     search_fields = ['name']
 
 
-@admin.register(Status)
-class StatusAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'key', 'created_at', 'updated_at']
+@admin.register(Shift)
+class ShiftAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'number', 'status']
+    list_filter = ['status']
+    readonly_fields = ['id']
+    search_fields = ['name', 'number']
+
+
+@admin.register(ExamShift)
+class ExamShiftAdmin(admin.ModelAdmin):
+    list_display = ['id', 'exam', 'sm', 'access_time', 'expire_time']
+    list_filter = ['exam__test', 'sm']
+    readonly_fields = ['id']
+    search_fields = ['exam__test__name']
+
+
+@admin.register(ExamState)
+class ExamStatusAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'key']
     list_filter = ['name']
     readonly_fields = ['id']
     search_fields = ['name']
@@ -28,11 +57,49 @@ class ExamAdmin(admin.ModelAdmin):
 
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
-    list_display = ['id', 'zone', 'last_name', 'first_name', 'middle_name', 'test_day', 'e_date', 'e_time',
-                    'sm', 'imei', 'group', 'seat', 'is_active', 'is_face',
-                    'is_image', 'is_entered', 'subject_id', 'subject_name', 'lang_id', 'level_id', 'phone',
-                    'ps_ser', 'ps_number'
+    list_display = ['id', 'zone', 'last_name', 'first_name', 'middle_name', 'e_date', 'e_date',
+                    'sm', 'imei', 'gr_n', 'sp', 'is_face',
+                    'is_image', 'is_entered', 'is_blacklist', 'is_cheating'
                     ]
-    list_filter = ['is_active', 'is_image', 'is_entered']
+    list_filter = ['is_ready', 'is_image', 'is_entered', 'is_cheating', 'is_blacklist']
     readonly_fields = ['id', 'created_at', 'updated_at']
-    search_fields = ['last_name', 'first_name', 'middle_name', 'test_day', 'e_date', 'imei',  'phone', 'ps_ser', 'ps_number']
+    search_fields = ['last_name', 'first_name', 'middle_name', 'e_date', 'imei']
+
+
+
+@admin.register(StudentPsData)
+class StudentPsDataAdmin(admin.ModelAdmin):
+    list_display = ['id', 'student', 'ps_ser', 'ps_num', 'phone']
+    readonly_fields = ['id']
+    search_fields = ['student__imei', 'student__last_name', 'student__first_name', 'phone']
+
+
+@admin.register(StudentLog)
+class StudentLogAdmin(admin.ModelAdmin):
+    list_display = ['id', 'student', 'img_face', 'pass_time', 'accuracy', 'door', 'is_hand_checked', 'mac_address', 'ip_address']
+    list_filter = ['is_hand_checked']
+    readonly_fields = ['id']
+    search_fields = ['student__imei', 'student__last_name', 'student__first_name', 'mac_address', 'ip_address']
+
+
+
+@admin.register(Reason)
+class ReasonAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'key', 'status']
+    readonly_fields = ['id']
+    search_fields = ['name']
+
+
+
+@admin.register(Cheating)
+class CheatingAdmin(admin.ModelAdmin):
+    list_display = ['id', 'student', 'reason', 'user', 'imei', 'pic']
+    readonly_fields = ['id']
+    search_fields = ['student__imei', 'student__last_name', 'student__first_name']
+
+
+@admin.register(StudentBlacklist)
+class StudentBlacklistAdmin(admin.ModelAdmin):
+    list_display = ['id', 'imei', 'description', 'created_at', 'updated_at']
+    readonly_fields = ['id']
+    search_fields = ['imei']

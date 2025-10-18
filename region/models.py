@@ -1,6 +1,6 @@
 from django.db import models
 from core.models.base import BaseModel
-
+from auditlog.registry import auditlog
 
 class Region(BaseModel):
     name = models.CharField(max_length=255, unique=True)
@@ -11,8 +11,8 @@ class Region(BaseModel):
         return self.name
 
     class Meta:
-        verbose_name = 'Region'
-        verbose_name_plural = 'Regions'
+        verbose_name = 'Viloyat'
+        verbose_name_plural = 'Viloyatlar'
         db_table = 'region'
 
 
@@ -32,7 +32,7 @@ class Zone(BaseModel):
 
 
 class SwingBarrier(BaseModel):
-    zone = models.ForeignKey('region.Zone', on_delete=models.SET_NULL, related_name="cameras", null=True, help_text='Bino')
+    zone = models.ForeignKey('region.Zone', on_delete=models.SET_NULL, related_name="zones", null=True, help_text='Bino')
     name = models.CharField(max_length=255)
     model = models.CharField(max_length=255, null=True, blank=True)
     number = models.IntegerField(default=0)
@@ -50,16 +50,16 @@ class SwingBarrier(BaseModel):
         return self.name
 
     class Meta:
-        verbose_name = 'Swing Barrier'
-        verbose_name_plural = 'Swing Barriers'
+        verbose_name = 'Turniket'
+        verbose_name_plural = 'Turniketlar'
         db_table = 'swing_barrier'
 
 
-class Computer(BaseModel):
-    zone = models.ForeignKey('region.Zone', on_delete=models.SET_NULL, related_name="computer_zones", null=True, help_text='Bino')
+class MonitorPc(BaseModel):
+    sb = models.ForeignKey('region.SwingBarrier', on_delete=models.SET_NULL, null=True, help_text='Turniket')
     name = models.CharField(max_length=255)
     number = models.IntegerField(default=0)
-    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    ip_address = models.GenericIPAddressField()
     mac_address = models.CharField(max_length=255, unique=True)
     status = models.BooleanField(default=False)
 
@@ -68,6 +68,12 @@ class Computer(BaseModel):
         return self.name
 
     class Meta:
-        verbose_name = 'Computer'
-        verbose_name_plural = 'Computers'
-        db_table = 'computer'
+        verbose_name = 'MonitorPc'
+        verbose_name_plural = 'Monitorlar'
+        db_table = 'monitor_pc'
+
+
+auditlog.register(Region)
+auditlog.register(Zone)
+auditlog.register(SwingBarrier)
+auditlog.register(MonitorPc)

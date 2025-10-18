@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils.html import format_html
 from core.models.base import BaseModel
+from auditlog.registry import auditlog
 from exam.models import Exam
 
 
@@ -46,3 +47,7 @@ class FaceIdentification(BaseModel):
 
     def __str__(self):
         return f"{self.user.username}"
+
+
+auditlog.register(FaceIdentification)
+auditlog.register(GenerateFaceExam)

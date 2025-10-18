@@ -1,7 +1,8 @@
 from django.db import models
 from pgvector.django import VectorField
-
+from auditlog.registry import auditlog
 from core.models.base import BaseModel
+from region.models import Zone
 
 
 class Test(BaseModel):
@@ -21,12 +22,33 @@ class Test(BaseModel):
 class Shift(BaseModel):
     name = models.CharField(max_length=20, unique=True)
     number = models.IntegerField(default=0, unique=True)
-    access_time = models.TimeField()
-    expire_time = models.TimeField()
     status = models.BooleanField(default=True)
 
+    def __str__(self):
+        return self.name
 
-class ExamStatus(BaseModel):
+    class Meta:
+        verbose_name = 'Smena'
+        verbose_name_plural = 'Smenalar'
+        db_table = 'shift'
+
+
+class ExamShift(BaseModel):
+    exam = models.ForeignKey('exam.Exam', on_delete=models.CASCADE, related_name='exams')
+    sm = models.ForeignKey('exam.Shift', on_delete=models.CASCADE, related_name='shifts')
+    access_time = models.TimeField()
+    expire_time = models.TimeField()
+
+    def __str__(self):
+        return f"{self.exam.test.name} - {self.exam.start_date} - {self.sm.name}"
+
+    class Meta:
+        verbose_name = 'Test Smena'
+        verbose_name_plural = 'Test Smenalar'
+        db_table = 'exam_sm'
+
+
+class ExamState(BaseModel):
     name = models.CharField(max_length=120, unique=True)
     key = models.CharField(max_length=120, unique=True)
 
@@ -34,9 +56,9 @@ class ExamStatus(BaseModel):
         return f"Status: {self.name}"
 
     class Meta:
-        verbose_name = 'Status'
-        verbose_name_plural = 'Status'
-        db_table = 'exam_status'
+        verbose_name = 'Exam holati'
+        verbose_name_plural = 'Exam holatlari'
+        db_table = 'exam_state'
 
 
 class Exam(BaseModel):
@@ -46,7 +68,7 @@ class Exam(BaseModel):
     sm_count = models.IntegerField(default=0)
     total_taker = models.IntegerField(default=0)
     is_finished = models.BooleanField(default=False)
-    status = models.ForeignKey('exam.Status', on_delete=models.SET_NULL, blank=True, null=True)
+    status = models.ForeignKey('exam.ExamState', on_delete=models.SET_NULL, blank=True, null=True)
 
     def __str__(self):
         return f"{self.test.name}"
@@ -60,7 +82,6 @@ class Exam(BaseModel):
 class Student(BaseModel):
     exam = models.ForeignKey("exam.Exam", on_delete=models.SET_NULL, blank=True, null=True)
     zone = models.ForeignKey("region.Zone", on_delete=models.SET_NULL, blank=True, null=True)
-    shift_id = models.ForeignKey("exam.Shift", on_delete=models.SET_NULL, blank=True, null=True)
     e_date = models.DateField(blank=True, null=True)
     sm = models.IntegerField(default=0)
     gr_n = models.PositiveSmallIntegerField(default=0)
@@ -84,7 +105,7 @@ class Student(BaseModel):
 
     class Meta:
         verbose_name = 'Student'
-        verbose_name_plural = 'Students'
+        verbose_name_plural = 'Studentlar'
         db_table = 'student'
         indexes = [
             models.Index(fields=['imei']),
@@ -103,29 +124,59 @@ class StudentPsData(BaseModel):
         return f"{self.student.fio}"
 
     class Meta:
-        verbose_name = 'StudentPsData'
-        verbose_name_plural = 'StudentPsDatas'
+        verbose_name = 'Pasport malumot'
+        verbose_name_plural = 'Pasport malumotlari'
         db_table = 'student_ps_data'
 
 
 class StudentLog(BaseModel):
-    student = models.OneToOneField("exam.Student", on_delete=models.CASCADE, related_name='logs')
-    img_enter = models.TextField(blank=True, null=True)
-    img_exit = models.TextField(blank=True, null=True)
+    student = models.ForeignKey("exam.Student", on_delete=models.SET_NULL, related_name='student_logs', blank=True, null=True)
+    img_face = models.TextField(blank=True, null=True)
+    door = models.PositiveSmallIntegerField(default=0)
     accuracy = models.PositiveSmallIntegerField(default=0)
-    time_enter = models.DateTimeField(blank=True, null=True)
-    time_exit = models.DateTimeField(blank=True, null=True)
-    is_hand_checking = models.BooleanField(default=False)
-    ip = models.GenericIPAddressField(blank=True, null=True)
+    pass_time = models.DateTimeField()
+    ip_address = models.GenericIPAddressField()
+    mac_address = models.CharField()
+    is_hand_checked = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.student.fio}"
 
+    class Meta:
+        verbose_name = 'Student Log'
+        verbose_name_plural = 'Student Loglari'
+        db_table = 'student_log'
+
+
+class Reason(BaseModel):
+    name = models.CharField(max_length=255)
+    key = models.PositiveSmallIntegerField(default=0)
+    status = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.name}"
 
     class Meta:
-        verbose_name = 'StudentLog'
-        verbose_name_plural = 'StudentLogs'
-        db_table = 'student_log'
+        verbose_name = 'Chetlatish sababi'
+        verbose_name_plural = 'Chetlatish sabablari'
+        db_table = 'reason'
+
+
+class Cheating(BaseModel):
+    student = models.ForeignKey("exam.Student", on_delete=models.SET_NULL, blank=True, null=True, help_text="Student")
+    reason = models.ForeignKey('exam.Reason', on_delete=models.SET_NULL, blank=True, null=True, help_text="Chetlatish sababi")
+    user = models.ForeignKey('users.User', on_delete=models.SET_NULL, blank=True, null=True, help_text="Chetlatgan vakil")
+    imei = models.CharField(max_length=14, db_index=True)
+    pic = models.ImageField(upload_to='cheating/', blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.imei}"
+
+    class Meta:
+        verbose_name = "Chetlatilgan student"
+        verbose_name_plural = "Chetlatilgan studentlar"
+        db_table = 'cheating'
+
 
 
 class StudentBlacklist(BaseModel):
@@ -137,6 +188,19 @@ class StudentBlacklist(BaseModel):
 
 
     class Meta:
-        verbose_name = 'StudentBlacklist'
-        verbose_name_plural = 'StudentBlacklists'
+        verbose_name = "Qora ro'yxat"
+        verbose_name_plural = "Qora ro'yxatdagilar"
         db_table = 'student_blacklist'
+
+
+auditlog.register(Cheating)
+auditlog.register(Exam)
+auditlog.register(ExamShift)
+auditlog.register(ExamState)
+auditlog.register(Reason)
+auditlog.register(Shift)
+auditlog.register(Student)
+auditlog.register(StudentBlacklist)
+auditlog.register(StudentLog)
+auditlog.register(StudentPsData)
+auditlog.register(Test)

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from region.serializers import ZoneSerializer
+from region.serializers import RegionSerializer
 from users.models import Role, User
 
 
@@ -11,8 +11,8 @@ class RoleSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
-    zone = ZoneSerializer(read_only=True)
+    zone = RegionSerializer(read_only=True)
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'password', 'zone']
+        fields = ['id', 'username', 'password', 'region', 'role']
