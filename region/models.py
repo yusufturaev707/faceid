@@ -47,7 +47,7 @@ class SwingBarrier(BaseModel):
 
 
     def __str__(self):
-        return self.name
+        return f"{self.zone.region.name} - {self.mac_address} - {self.ip_address}"
 
     class Meta:
         verbose_name = 'Turniket'
@@ -65,7 +65,7 @@ class MonitorPc(BaseModel):
 
 
     def __str__(self):
-        return self.name
+        return self.mac_address
 
     class Meta:
         verbose_name = 'MonitorPc'

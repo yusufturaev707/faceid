@@ -1,25 +1,11 @@
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.contrib.auth.models import PermissionsMixin
 from auditlog.registry import auditlog
-from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from pgvector.django import VectorField
 
 from users.user_manager import UserManager
 from core.models.base import BaseModel
-
-
-class Role(BaseModel):
-    name = models.CharField(max_length=255, unique=True)
-    code = models.IntegerField(default=0, unique=True)
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        verbose_name = 'Rol'
-        verbose_name_plural = 'Rollar'
-        db_table = 'role'
 
 
 class User(AbstractBaseUser, PermissionsMixin, BaseModel):
@@ -31,7 +17,6 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     is_superuser = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     telegram_id = models.CharField(max_length=20, blank=True, null=True, unique=True)
-    role = models.ForeignKey('users.Role', on_delete=models.SET_NULL, blank=True, null=True)
     region = models.ForeignKey('region.Region', on_delete=models.SET_NULL, blank=True, null=True)
     img_b64 = models.TextField(blank=True, null=True)
     img_vector = VectorField(dimensions=512, blank=True, null=True)
@@ -42,6 +27,22 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     def __str__(self):
         return self.username
 
+    @property
+    def is_admin(self):
+        return self.groups.filter(name='Admin').exists()
+
+    @property
+    def is_central(self):
+        return self.groups.filter(name='Markaz').exists()
+
+    @property
+    def is_delegate(self):
+        return self.groups.filter(name='Vakil').exists()
+
+    @property
+    def is_user(self):
+        return self.groups.filter(name='User').exists()
+
     class Meta:
         abstract = False
         ordering = ["-id"]
@@ -50,5 +51,4 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
         db_table = 'user'
 
 
-auditlog.register(Role)
 auditlog.register(User)
