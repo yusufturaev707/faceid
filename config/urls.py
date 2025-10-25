@@ -17,5 +17,10 @@ urlpatterns += [
     path('api/v1/', include('region.urls')),
 ]
 
-urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    # Agar STATICFILES_DIRS ishlatayotgan bo'lsangiz:
+    from django.contrib.staticfiles.views import serve
+    urlpatterns += [
+        path('static/<path:path>', serve),
+    ]

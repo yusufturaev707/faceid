@@ -1,5 +1,10 @@
 import requests
 from core import const
+from datetime import timedelta
+from django.utils import timezone
+from django.conf import settings
+from django.utils.translation import gettext_lazy as _
+
 
 def get_image_from_personal_info(imi: str = None, ps: str = None):
     try:
@@ -15,3 +20,96 @@ def get_image_from_personal_info(imi: str = None, ps: str = None):
 def replace_image_to_none_image():
     base64_image = ""
     return base64_image
+
+
+# unfold callback
+
+def environment_callback(request):
+    """Muhit nomi."""
+    env = getattr(settings, 'CURRENT_ENV', 'PROD')
+
+    env_config = {
+        'DEV': (_("🔧 RIVOJLANISH"), "warning"),
+        'STAGING': (_("🧪 SINOV"), "info"),
+        'PROD': (_("🚀 ISHCHI"), "success"),
+    }
+
+    return env_config.get(env, (_("ISHCHI"), "success"))
+
+
+def environment_title_prefix_callback(request):
+    """Brauzer sarlavhasi prefiksi."""
+    env = getattr(settings, 'CURRENT_ENV', 'PROD')
+    if env != 'PROD':
+        return f"[{env}] "
+    return ""
+
+
+def dashboard_callback(request, context):
+    """Dashboard sozlamalari."""
+    # ✅ Bu yerda import qiling (funktsiya ichida!)
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+
+    total_users = User.objects.count()
+    active_users = User.objects.filter(is_active=True).count()
+
+    context.update({
+        "navigation": [
+            {
+                "title": _("📊 Statistika"),
+                "icon": "analytics",
+                "type": "card",
+                "cards": [
+                    {
+                        "title": _("Jami Foydalanuvchilar"),
+                        "value": total_users,
+                        "icon": "people",
+                    },
+                    {
+                        "title": _("Faol Foydalanuvchilar"),
+                        "value": active_users,
+                        "icon": "check_circle",
+                    },
+                ],
+            },
+            {
+                "title": _("🗂️ Tez Kirish"),
+                "icon": "grid_view",
+                "type": "model",
+                "models": [
+                    "users.user",
+                    "auditlog.logentry",
+                ]
+            },
+        ]
+    })
+    return context
+
+
+def badge_callback(request):
+    """Dashboard badge."""
+    # ✅ Funktsiya ichida import
+    from users.models import User
+
+    yesterday = timezone.now() - timedelta(days=1)
+    new_users = User.objects.filter(last_login__gte=yesterday).count()
+    return new_users if new_users > 0 else None
+
+
+def audit_badge_callback(request):
+    """Audit log badge."""
+    # ✅ Funktsiya ichida import
+    from auditlog.models import LogEntry
+
+    yesterday = timezone.now() - timedelta(days=1)
+    count = LogEntry.objects.filter(timestamp__gte=yesterday).count()
+    return count if count > 0 else None
+
+
+def permission_callback(request):
+    """Ruxsat tekshiruvi."""
+    if not request.user.is_authenticated:
+        return False
+    return request.user.is_superuser or request.user.has_perm('users.view_user')

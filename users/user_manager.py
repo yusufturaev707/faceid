@@ -1,4 +1,4 @@
-from django.contrib.auth.models import BaseUserManager
+from django.contrib.auth.models import BaseUserManager, Group
 
 
 class UserManager(BaseUserManager):
@@ -11,7 +11,6 @@ class UserManager(BaseUserManager):
         user.is_active=True
         user.is_staff=True
         user.save(using=self._db)
-        print("User saqlandi......")
         return user
 
     def create_superuser(self, username, password=None, **extra_fields):
@@ -23,4 +22,22 @@ class UserManager(BaseUserManager):
             raise ValueError('Superuser is_staff=True bo\'lishi kerak')
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('Superuser is_superuser=True bo\'lishi kerak')
-        return self.create_user(username, password, **extra_fields)
+
+        # Admin guruhi borligini tekshirish
+        try:
+            admin_group = Group.objects.get(name='Admin')
+        except Group.DoesNotExist:
+            raise ValueError(
+                    "❌ 'Admin' guruhi topilmadi! "
+                    "Avval 'python manage.py create_groups' kommandasini ishga tushiring."
+                )
+
+        # User yaratish
+        user = self.create_user(username, password, **extra_fields)
+
+        # ✅ Admin guruhiga qo'shish
+        user.groups.add(admin_group)
+
+        print(f"✅ Superuser '{username}' yaratildi va 'Admin' guruhiga qo'shildi")
+
+        return user

@@ -1,28 +1,31 @@
 from django.db import models
+from django.utils.html import format_html
 from pgvector.django import VectorField
 from auditlog.registry import auditlog
 from core.models.base import BaseModel
 from region.models import Zone
+from django.utils.translation import gettext_lazy as _
+
 
 
 class Test(BaseModel):
-    name = models.CharField(max_length=255, unique=True)
-    code = models.IntegerField(default=0, unique=True)
-    is_active = models.BooleanField(default=True)
+    name = models.CharField(max_length=255, unique=True, verbose_name=_("Nom"))
+    code = models.IntegerField(default=0, unique=True, verbose_name=_("Kod"))
+    is_active = models.BooleanField(default=True, verbose_name=_("Active"))
 
     def __str__(self):
         return self.name
 
     class Meta:
-        verbose_name = 'Test'
-        verbose_name_plural = 'Testlar'
+        verbose_name = 'Test turi'
+        verbose_name_plural = 'Test turlari'
         db_table = 'test'
 
 
 class Shift(BaseModel):
-    name = models.CharField(max_length=20, unique=True)
-    number = models.IntegerField(default=0, unique=True)
-    status = models.BooleanField(default=True)
+    name = models.CharField(max_length=20, unique=True, verbose_name=_("Nom"))
+    number = models.IntegerField(default=0, unique=True, verbose_name=_("Nomer"))
+    status = models.BooleanField(default=True, verbose_name=_("Holat"))
 
     def __str__(self):
         return self.name
@@ -34,72 +37,74 @@ class Shift(BaseModel):
 
 
 class ExamShift(BaseModel):
-    exam = models.ForeignKey('exam.Exam', on_delete=models.CASCADE, related_name='exams')
-    sm = models.ForeignKey('exam.Shift', on_delete=models.CASCADE, related_name='shifts')
-    access_time = models.TimeField()
-    expire_time = models.TimeField()
+    exam = models.ForeignKey('exam.Exam', on_delete=models.CASCADE, related_name='exams', verbose_name=_("Tadbir"))
+    sm = models.ForeignKey('exam.Shift', on_delete=models.CASCADE, related_name='shifts', verbose_name=_("Smena"))
+    access_time = models.TimeField(verbose_name=_("Ruxsat vaqti"))
+    expire_time = models.TimeField(verbose_name=_("Yopilish vaqti"))
 
     def __str__(self):
-        return f"{self.exam.test.name} - {self.exam.start_date} - {self.sm.name}"
+        return f"{self.sm.name} - {self.exam.test.name}"
 
     class Meta:
-        verbose_name = 'Test Smena'
-        verbose_name_plural = 'Test Smenalar'
+        verbose_name = 'Kirish ruxsati'
+        verbose_name_plural = 'Kirish ruxsati'
         db_table = 'exam_sm'
 
 
 class ExamState(BaseModel):
-    name = models.CharField(max_length=120, unique=True)
-    key = models.CharField(max_length=120, unique=True)
+    name = models.CharField(max_length=120, unique=True, verbose_name=_("Nom"))
+    key = models.CharField(max_length=120, unique=True, verbose_name=_("Kod"))
 
     def __str__(self):
-        return f"Status: {self.name}"
+        return f"{self.name}"
 
     class Meta:
-        verbose_name = 'Exam holati'
-        verbose_name_plural = 'Exam holatlari'
+        verbose_name = 'Tadbir holati'
+        verbose_name_plural = 'Tadbir holatlari'
         db_table = 'exam_state'
 
 
 class Exam(BaseModel):
-    test = models.ForeignKey('exam.Test', on_delete=models.SET_NULL, blank=True, null=True)
-    start_date = models.DateField()
-    finish_date = models.DateField()
-    sm_count = models.IntegerField(default=0)
-    total_taker = models.IntegerField(default=0)
-    is_finished = models.BooleanField(default=False)
-    status = models.ForeignKey('exam.ExamState', on_delete=models.SET_NULL, blank=True, null=True)
+    test = models.ForeignKey('exam.Test', on_delete=models.SET_NULL, blank=True, null=True, verbose_name=_("Test turi"))
+    start_date = models.DateField(verbose_name=_("Birinchi kun"))
+    finish_date = models.DateField(verbose_name=_("Oxirgi kun"))
+    sm_count = models.IntegerField(default=0, verbose_name=_("Kun davomidagi smena soni"))
+    total_taker = models.IntegerField(default=0, verbose_name=_("Test topshiruvchilar soni"))
+    is_finished = models.BooleanField(default=False, verbose_name=_("Tugadimi"))
+    status = models.ForeignKey('exam.ExamState', on_delete=models.SET_NULL, blank=True, null=True, verbose_name=_("Holat"))
 
     def __str__(self):
         return f"{self.test.name}"
 
     class Meta:
-        verbose_name = 'Exam'
-        verbose_name_plural = 'Exams'
+        verbose_name = 'Tadbir'
+        verbose_name_plural = 'Tadbirlar'
         db_table = 'exam'
 
 
 class Student(BaseModel):
-    exam = models.ForeignKey("exam.Exam", on_delete=models.SET_NULL, blank=True, null=True)
-    zone = models.ForeignKey("region.Zone", on_delete=models.SET_NULL, blank=True, null=True)
-    e_date = models.DateField(blank=True, null=True)
-    sm = models.IntegerField(default=0)
-    gr_n = models.PositiveSmallIntegerField(default=0)
-    last_name = models.CharField(max_length=255)
-    first_name = models.CharField(max_length=255)
-    middle_name = models.CharField(max_length=255)
-    imei = models.CharField(max_length=14, db_index=True)
-    sp = models.PositiveSmallIntegerField(default=0)
-    is_ready = models.BooleanField(default=True)
-    is_face = models.BooleanField(default=True)
-    is_image = models.BooleanField(default=True)
-    is_entered = models.BooleanField(default=False)
-    is_blacklist = models.BooleanField(default=False)
-    is_cheating = models.BooleanField(default=False)
+    exam = models.ForeignKey("exam.Exam", on_delete=models.SET_NULL, blank=True, null=True, verbose_name=_("Tadbir"))
+    zone = models.ForeignKey("region.Zone", on_delete=models.SET_NULL, blank=True, null=True, verbose_name=_("Bino"))
+    e_date = models.DateField(blank=True, null=True, verbose_name=_("Imtihon topshirish kuni"))
+    sm = models.IntegerField(default=0, verbose_name=_("Smena"))
+    gr_n = models.PositiveSmallIntegerField(default=0, verbose_name=_("Guruh"))
+    last_name = models.CharField(max_length=255, verbose_name=_("Familiya"))
+    first_name = models.CharField(max_length=255, verbose_name=_("Ismi"))
+    middle_name = models.CharField(max_length=255, verbose_name=_("Sharif"))
+    imei = models.CharField(max_length=14, db_index=True, verbose_name=_("Jshshir"))
+    sp = models.PositiveSmallIntegerField(default=0, verbose_name=_("O'rni"))
+    is_ready = models.BooleanField(default=True, verbose_name=_("Tayyor"))
+    is_face = models.BooleanField(default=True, verbose_name=_("Yuz aniqlanganmi"))
+    is_image = models.BooleanField(default=True, verbose_name=_("Rasmi bormi"))
+    is_entered = models.BooleanField(default=False, verbose_name=_("Turniketdan kirdimi"))
+    is_blacklist = models.BooleanField(default=False, verbose_name=_("Qora ro'yxatda bormi"))
+    is_cheating = models.BooleanField(default=False, verbose_name=_("Chetlashdimi"))
+    s_code = models.BigIntegerField(unique=True, verbose_name=_("UserID"))
 
     def __str__(self):
-        return f"{self.last_name} {self.first_name}"
+        return self.fio
 
+    @property
     def fio(self):
         return f"{self.last_name} {self.first_name} {self.middle_name}"
 
@@ -113,15 +118,25 @@ class Student(BaseModel):
 
 
 class StudentPsData(BaseModel):
-    student = models.OneToOneField('exam.Student', on_delete=models.CASCADE, related_name='ps_data')
-    ps_ser = models.CharField(max_length=5, blank=True, null=True)
-    ps_num = models.CharField(max_length=10, blank=True, null=True)
-    phone = models.CharField(max_length=13, blank=True, null=True)
-    embedding = VectorField(dimensions=512, blank=True, null=True)
-    img_b64 = models.TextField(blank=True, null=True)
+    student = models.OneToOneField('exam.Student', on_delete=models.CASCADE, related_name='ps_data', verbose_name=_("Student"))
+    ps_ser = models.CharField(max_length=5, blank=True, null=True, verbose_name=_("Seriya"))
+    ps_num = models.CharField(max_length=10, blank=True, null=True, verbose_name=_("Nomer"))
+    phone = models.CharField(max_length=13, blank=True, null=True, verbose_name=_("Telefon"))
+    embedding = VectorField(dimensions=512, blank=True, null=True, verbose_name=_("Vector"))
+    img_b64 = models.TextField(blank=True, null=True, verbose_name=_("Rasm"))
 
     def __str__(self):
-        return f"{self.student.fio}"
+        return f"EXAM | StudentPsData - {self.student.fio}"
+
+    def image_tag(self):
+        if self.img_b64:
+            return format_html(
+                '<img src="{}" style="max-width:85px; max-height:85px;" />',
+                self.img_b64
+            )
+        return "(No Image)"
+
+    image_tag.short_description = 'Rasm'
 
     class Meta:
         verbose_name = 'Pasport malumot'
@@ -130,35 +145,35 @@ class StudentPsData(BaseModel):
 
 
 class StudentLog(BaseModel):
-    student = models.ForeignKey("exam.Student", on_delete=models.SET_NULL, related_name='student_logs', blank=True, null=True)
-    img_face = models.TextField(blank=True, null=True)
-    door = models.PositiveSmallIntegerField(default=0)
-    accuracy = models.PositiveSmallIntegerField(default=0)
-    pass_time = models.DateTimeField()
-    ip_address = models.GenericIPAddressField()
-    mac_address = models.CharField()
-    is_hand_checked = models.BooleanField(default=False)
+    student = models.ForeignKey("exam.Student", on_delete=models.SET_NULL, related_name='student_logs', blank=True, null=True, verbose_name=_("Student"))
+    img_face = models.TextField(blank=True, null=True, verbose_name=_("O'tgandagi rasm"))
+    door = models.PositiveSmallIntegerField(default=0, verbose_name=_("Kirdi|Chiqdi eshik"))
+    accuracy = models.PositiveSmallIntegerField(default=0, verbose_name=_("O'xshashlik"))
+    pass_time = models.DateTimeField(verbose_name=_("O'tgan vaqt"))
+    ip_address = models.GenericIPAddressField(verbose_name=_("IP address"))
+    mac_address = models.CharField(verbose_name=_("MAC address"))
+    is_hand_checked = models.BooleanField(default=False, verbose_name=_("Qo'lda tekshirilgan"))
 
     def __str__(self):
         return f"{self.student.fio}"
 
     class Meta:
-        verbose_name = 'Student Log'
-        verbose_name_plural = 'Student Loglari'
+        verbose_name = 'Log'
+        verbose_name_plural = 'Loglar'
         db_table = 'student_log'
 
 
 class Reason(BaseModel):
-    name = models.CharField(max_length=255)
-    key = models.PositiveSmallIntegerField(default=0)
-    status = models.BooleanField(default=True)
+    name = models.CharField(max_length=255, verbose_name=_("Nomi"))
+    key = models.PositiveSmallIntegerField(default=0, verbose_name=_("Key"))
+    status = models.BooleanField(default=True, verbose_name=_("Holat"))
 
     def __str__(self):
         return f"{self.name}"
 
     class Meta:
-        verbose_name = 'Chetlatish sababi'
-        verbose_name_plural = 'Chetlatish sabablari'
+        verbose_name = 'Sabab'
+        verbose_name_plural = 'Sabablar'
         db_table = 'reason'
 
 
@@ -166,8 +181,8 @@ class Cheating(BaseModel):
     student = models.ForeignKey("exam.Student", on_delete=models.SET_NULL, blank=True, null=True, help_text="Student")
     reason = models.ForeignKey('exam.Reason', on_delete=models.SET_NULL, blank=True, null=True, help_text="Chetlatish sababi")
     user = models.ForeignKey('users.User', on_delete=models.SET_NULL, blank=True, null=True, help_text="Chetlatgan vakil")
-    imei = models.CharField(max_length=14, db_index=True)
-    pic = models.ImageField(upload_to='cheating/', blank=True, null=True)
+    imei = models.CharField(max_length=14, db_index=True, verbose_name=_("Jshshir"))
+    pic = models.ImageField(upload_to='cheating/', blank=True, null=True, verbose_name=_("Rasm"))
 
     def __str__(self):
         return f"{self.imei}"
@@ -180,8 +195,8 @@ class Cheating(BaseModel):
 
 
 class StudentBlacklist(BaseModel):
-    imei = models.CharField(max_length=14, db_index=True)
-    description = models.TextField(blank=True, null=True)
+    imei = models.CharField(max_length=14, db_index=True, verbose_name=_("Jshshir"))
+    description = models.TextField(blank=True, null=True, verbose_name=_("izoh"))
 
     def __str__(self):
         return f"{self.imei}"
@@ -191,6 +206,32 @@ class StudentBlacklist(BaseModel):
         verbose_name = "Qora ro'yxat"
         verbose_name_plural = "Qora ro'yxatdagilar"
         db_table = 'student_blacklist'
+
+
+class ExamZoneSwingBar(models.Model):
+    exam = models.ForeignKey('exam.Exam', on_delete=models.SET_NULL, blank=True, null=True, help_text="Exam")
+    sb = models.ForeignKey('region.SwingBarrier', on_delete=models.SET_NULL, blank=True, null=True, help_text="SwingBarrier")
+    json_error = models.JSONField(blank=True, null=True, verbose_name=_("Qolib ketgan pinfllar"))
+    real_count = models.BigIntegerField(default=0, verbose_name=_("Real count"))
+    pushed_count = models.BigIntegerField(default=0, verbose_name=_("Current count"))
+    diff_count = models.BigIntegerField(default=0, verbose_name=_("Difference count"))
+    status = models.BooleanField(default=False, verbose_name=_("Holat"))
+
+    def save(self, *args, **kwargs):
+        if self.real_count == self.pushed_count and self.real_count > 0:
+            self.status = True
+        else:
+            self.diff_count = self.real_count - self.pushed_count
+            self.status = False
+        super(ExamZoneSwingBar, self).save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.exam.id} | {self.sb.zone.region.name} | {self.sb.zone.name} | {self.real_count}"
+
+    class Meta:
+        verbose_name = _('Tadbirga biriktirilgan bino')
+        verbose_name_plural = _('Tadbirga biriktirilgan binolar')
+        db_table = 'exam_zone'
 
 
 auditlog.register(Cheating)
@@ -204,3 +245,4 @@ auditlog.register(StudentBlacklist)
 auditlog.register(StudentLog)
 auditlog.register(StudentPsData)
 auditlog.register(Test)
+auditlog.register(ExamZoneSwingBar)

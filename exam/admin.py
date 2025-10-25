@@ -1,7 +1,168 @@
-from django.contrib import admin
+import time
+from typing import Union
+
+from django.contrib import admin, messages
+from django.contrib.postgres.fields import ArrayField
+from django.http import HttpRequest
+from django.shortcuts import redirect
+from django.db import models
+
 from unfold.admin import ModelAdmin
+from unfold.contrib.forms.widgets import WysiwygWidget, ArrayWidget, UnfoldAdminTextInputWidget, UnfoldAdminSelectWidget
+from unfold.decorators import action
+from django.urls import reverse_lazy
+from django.utils.translation import gettext_lazy as _
+from unfold.enums import ActionVariant
+
+from asgiref.sync import async_to_sync
+from unfold.paginator import InfinitePaginator
+
+from exam import services
 from exam.models import Exam, Test, ExamState, Student, Shift, StudentPsData, StudentLog, ExamShift, Reason, Cheating, \
-    StudentBlacklist
+    StudentBlacklist, ExamZoneSwingBar
+from exam.service_swing_barriers import send_to_turnstile
+from region.models import Region, Zone, SwingBarrier
+
+admin.site.disable_action('delete_selected')
+
+
+class ExamShiftInline(admin.StackedInline):
+    model = ExamShift
+    max_num = 4
+    extra = 1
+    fields = ('exam', 'sm', 'access_time', 'expire_time')
+
+    can_delete = False
+
+    formfield_overrides = {
+        models.TextField: {
+            "widget": WysiwygWidget,
+        },
+        ArrayField: {
+            "widget": ArrayWidget,
+        },
+        models.ForeignKey: {
+            "widget": UnfoldAdminSelectWidget,
+        },
+        models.TimeField: {
+            "widget": UnfoldAdminTextInputWidget(attrs={"type": "time"}),
+        },
+    }
+
+
+@admin.register(Exam)
+class ExamAdmin(ModelAdmin):
+    list_display = ['id', 'test', 'status', 'total_taker', 'start_date', 'finish_date', 'is_finished']
+    list_filter = ['start_date', 'test__name', 'is_finished', 'status']
+    readonly_fields = ['id', 'created_at', 'updated_at', 'status']
+    search_fields = ['start_date', 'test__name', 'is_finished']
+    list_display_links = ['id', 'test']
+
+    actions_row  = ["load_data_cefr_action"]
+    actions = ["push_swing_barrier_action"]
+    inlines = [ExamShiftInline]
+
+    @action(
+        description=_("Cefr yuklab olish"),
+        permissions=["load_data_cefr_action"],
+        url_path="load-data-cefr-action",
+        # attrs={"target": "_blank"},
+        icon="api",
+        variant=ActionVariant.SUCCESS,
+    )
+    def load_data_cefr_action(self, request: HttpRequest, object_id: int):
+        try:
+            exam_object = Exam.objects.get(id=object_id)
+            state_key = exam_object.status.key
+            if not state_key == 'new':
+                messages.warning(request, f"Ma'lumot yuklab olish holatida emas!")
+                return redirect("admin:exam_exam_changelist")
+            t = async_to_sync(services.get_all_users_cefr)(exam_object)
+            if len(t) == 0:
+                messages.error(request, _(f"Ma'lumot yozilmadi."))
+                return redirect(
+                    reverse_lazy("admin:exam_exam_changelist")
+                )
+            exam_object.status = ExamState.objects.get(key='load_data')
+            exam_object.total_taker = len(t)
+            exam_object.save()
+            time.sleep(3)
+            messages.success(request, _(f"Jarayon yakunlandi."))
+            return redirect(
+                reverse_lazy("admin:exam_exam_changelist")
+            )
+        except Exception as e:
+            messages.error(request, str(e))
+            return redirect("admin:exam_exam_changelist")
+
+    @staticmethod
+    def has_load_data_cefr_action_permission(request: HttpRequest):
+        user = request.user
+        return user.is_superuser or user.is_central or user.is_admin
+
+    @action(
+        description=_("Turniketlarga yuborish"),
+        url_path="push-swing-barrier-action",
+        permissions=["push_swing_barrier_action"],
+        icon="send",
+        variant=ActionVariant.PRIMARY,
+    )
+    def push_swing_barrier_action(self, request: HttpRequest, queryset):
+        success_count = 0
+        error_count = 0
+
+        zones = Zone.objects.filter(status=True, region__status=True).order_by('number')
+
+        for exam in queryset:
+            for zone in zones:
+                sb_list = SwingBarrier.objects.filter(zone=zone, status=True).order_by('number')
+                if len(sb_list) == 0:
+                    self.message_user(request, f"{zone.name} da turniket topilmadi!")
+                    continue
+                student_queryset = Student.objects.filter(exam=exam, zone=zone).order_by('id')
+                if student_queryset.count() == 0:
+                    self.message_user(request, f"{zone.name} da topshiradigan studentlar topilmadi!")
+                    continue
+            try:
+                result = async_to_sync(send_to_turnstile)(exam)
+                success_count += 1
+            except Exception as e:
+                error_count += 1
+                print(f"Error for exam {exam.id}: {e}")
+
+        if success_count:
+            self.message_user(
+                request,
+                f"{success_count} ta imtihon muvaffaqiyatli yuborildi!",
+                level=messages.SUCCESS
+            )
+        if error_count:
+            self.message_user(
+                request,
+                f"{error_count} ta imtihonda xatolik yuz berdi!",
+                level=messages.ERROR
+            )
+
+    @staticmethod
+    def has_push_swing_barrier_action_permission(request: HttpRequest):
+        user = request.user
+        return user.is_admin or user.is_central
+
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.status = ExamState.objects.get(key='new')
+        super().save_model(request, obj, form, change)
+        return
+
+    class Media:
+        js = (
+            'https://unpkg.com/htmx.org@1.9.10',
+            'unfold/js/htmx_spinner.js',
+        )
+        css = {
+            'all': ('unfold/css/htmx_spinner.css',)
+        }
 
 
 @admin.register(Test)
@@ -10,6 +171,7 @@ class TestAdmin(ModelAdmin):
     list_filter = ['is_active', 'name']
     readonly_fields = ['id']
     search_fields = ['name']
+    list_display_links = ['id', 'name']
 
 
 @admin.register(Shift)
@@ -18,14 +180,7 @@ class ShiftAdmin(ModelAdmin):
     list_filter = ['status']
     readonly_fields = ['id']
     search_fields = ['name', 'number']
-
-
-@admin.register(ExamShift)
-class ExamShiftAdmin(ModelAdmin):
-    list_display = ['id', 'exam', 'sm', 'access_time', 'expire_time']
-    list_filter = ['exam__test', 'sm']
-    readonly_fields = ['id']
-    search_fields = ['exam__test__name']
+    list_display_links = ['id', 'name']
 
 
 @admin.register(ExamState)
@@ -34,33 +189,57 @@ class ExamStatusAdmin(ModelAdmin):
     list_filter = ['name']
     readonly_fields = ['id']
     search_fields = ['name']
+    list_display_links = ['id', 'name']
 
 
-@admin.register(Exam)
-class ExamAdmin(ModelAdmin):
-    list_display = ['id', 'start_date', 'finish_date', 'test', 'total_taker', 'sm_count', 'is_finished', 'status']
-    list_filter = ['start_date', 'test__name', 'is_finished', 'status']
-    readonly_fields = ['id']
-    search_fields = ['start_date', 'test__name', 'is_finished']
+class StudentPsDataInline(admin.StackedInline):
+    model = StudentPsData
+    max_num = 1
+    extra = 0
+    fields = ('ps_ser', 'ps_num', 'phone', 'image_tag', 'embedding')
+    readonly_fields = ('image_tag', 'embedding')
+
+
+    formfield_overrides = {
+        models.TextField: {
+            "widget": WysiwygWidget,
+        },
+        ArrayField: {
+            "widget": ArrayWidget,
+        },
+        models.CharField: {
+            "widget": UnfoldAdminTextInputWidget,
+        },
+    }
 
 
 @admin.register(Student)
 class StudentAdmin(ModelAdmin):
-    list_display = ['id', 'zone', 'last_name', 'first_name', 'middle_name', 'e_date', 'e_date',
-                    'sm', 'imei', 'gr_n', 'sp', 'is_face',
-                    'is_image', 'is_entered', 'is_blacklist', 'is_cheating'
-                    ]
+    list_display = ['id', 'last_name', 'first_name', 'middle_name', 'imei', 's_code', 'zone', 'e_date', 'sm', 'gr_n', 'is_entered']
     list_filter = ['is_ready', 'is_image', 'is_entered', 'is_cheating', 'is_blacklist']
     readonly_fields = ['id', 'created_at', 'updated_at']
-    search_fields = ['last_name', 'first_name', 'middle_name', 'e_date', 'imei']
+    search_fields = ['last_name', 'first_name', 'middle_name', 'e_date', 'imei', 's_code']
+    list_display_links = ['id', 'name']
+    list_per_page = 20
 
 
+    compressed_fields = True
+    list_fullwidth = False
+    list_filter_sheet = True
+    list_horizontal_scrollbar_bottom = True
+    paginator = InfinitePaginator
+    show_full_result_count = False
 
-@admin.register(StudentPsData)
-class StudentPsDataAdmin(ModelAdmin):
-    list_display = ['id', 'student', 'ps_ser', 'ps_num', 'phone']
-    readonly_fields = ['id']
-    search_fields = ['student__imei', 'student__last_name', 'student__first_name', 'phone']
+    formfield_overrides = {
+        models.TextField: {
+            "widget": WysiwygWidget,
+        },
+        ArrayField: {
+            "widget": ArrayWidget,
+        }
+    }
+    inlines = [StudentPsDataInline]
+
 
 
 @admin.register(StudentLog)
@@ -69,6 +248,16 @@ class StudentLogAdmin(ModelAdmin):
     list_filter = ['is_hand_checked']
     readonly_fields = ['id']
     search_fields = ['student__imei', 'student__last_name', 'student__first_name', 'mac_address', 'ip_address']
+    list_display_links = ['id', 'name']
+
+
+@admin.register(ExamZoneSwingBar)
+class ExamZoneSwingBarAdmin(ModelAdmin):
+    list_display = ['id', 'exam', 'sb', 'real_count', 'pushed_count', 'diff_count', 'status']
+    list_filter = ['status']
+    readonly_fields = ['id']
+    search_fields = ['student__imei', 'student__last_name', 'student__first_name', 'mac_address', 'ip_address']
+    list_display_links = ['id', 'exam']
 
 
 
@@ -77,6 +266,7 @@ class ReasonAdmin(ModelAdmin):
     list_display = ['id', 'name', 'key', 'status']
     readonly_fields = ['id']
     search_fields = ['name']
+    list_display_links = ['id', 'name']
 
 
 
@@ -85,6 +275,7 @@ class CheatingAdmin(ModelAdmin):
     list_display = ['id', 'student', 'reason', 'user', 'imei', 'pic']
     readonly_fields = ['id']
     search_fields = ['student__imei', 'student__last_name', 'student__first_name']
+    list_display_links = ['id', 'student']
 
 
 @admin.register(StudentBlacklist)
@@ -92,3 +283,4 @@ class StudentBlacklistAdmin(ModelAdmin):
     list_display = ['id', 'imei', 'description', 'created_at', 'updated_at']
     readonly_fields = ['id']
     search_fields = ['imei']
+    list_display_links = ['id', 'imei']

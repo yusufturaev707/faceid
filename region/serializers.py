@@ -6,7 +6,7 @@ from region.models import Region, Zone, SwingBarrier, MonitorPc
 class RegionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Region
-        fields = ['id', 'name', 'number']
+        fields = ['id', 'name', 'number', 's_number']
 
 
 
