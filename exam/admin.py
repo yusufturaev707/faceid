@@ -1,11 +1,11 @@
 import time
-from typing import Union
-
+from ipaddress import IPv4Address
 from django.contrib import admin, messages
 from django.contrib.postgres.fields import ArrayField
 from django.http import HttpRequest
 from django.shortcuts import redirect
 from django.db import models
+from sympy.polys.polyconfig import query
 
 from unfold.admin import ModelAdmin
 from unfold.contrib.forms.widgets import WysiwygWidget, ArrayWidget, UnfoldAdminTextInputWidget, UnfoldAdminSelectWidget
@@ -20,8 +20,8 @@ from unfold.paginator import InfinitePaginator
 from exam import services
 from exam.models import Exam, Test, ExamState, Student, Shift, StudentPsData, StudentLog, ExamShift, Reason, Cheating, \
     StudentBlacklist, ExamZoneSwingBar
-from exam.service_swing_barriers import send_to_turnstile
-from region.models import Region, Zone, SwingBarrier
+from region.models import Zone, SwingBarrier
+from region.utils import is_check_healthy, delete_all_visitors
 
 admin.site.disable_action('delete_selected')
 
@@ -59,7 +59,7 @@ class ExamAdmin(ModelAdmin):
     list_display_links = ['id', 'test']
 
     actions_row  = ["load_data_cefr_action"]
-    actions = ["push_swing_barrier_action"]
+    actions = ["choose_swing_barrier_action", "push_swing_barrier_action"]
     inlines = [ExamShiftInline]
 
     @action(
@@ -124,7 +124,7 @@ class ExamAdmin(ModelAdmin):
                     self.message_user(request, f"{zone.name} da topshiradigan studentlar topilmadi!")
                     continue
             try:
-                result = async_to_sync(send_to_turnstile)(exam)
+                result = async_to_sync(services.send_to_turnstile)(exam)
                 success_count += 1
             except Exception as e:
                 error_count += 1
@@ -145,6 +145,63 @@ class ExamAdmin(ModelAdmin):
 
     @staticmethod
     def has_push_swing_barrier_action_permission(request: HttpRequest):
+        user = request.user
+        return user.is_admin or user.is_central
+
+    @action(
+        description=_("Turniketlarni tanlash"),
+        url_path="choose-swing-barrier-action",
+        permissions=["choose_swing_barrier_action"],
+        icon="send",
+        variant=ActionVariant.INFO,
+    )
+    def choose_swing_barrier_action(self, request: HttpRequest, queryset):
+        if queryset.count() == 0:
+            self.message_user(request, "Tadbir tanlanmadi!", level=messages.ERROR)
+            return redirect("admin:exam_exam_changelist")
+        if queryset.count() > 1:
+            self.message_user(request, "Faqat 1 ta tadbirni tanlang!", level=messages.ERROR)
+            return redirect("admin:exam_exam_changelist")
+        if queryset.count() == 1:
+            sb_queryset = SwingBarrier.objects.filter(status=True, zone__region__status=True,
+                                                      zone__status=True).order_by('zone__region__number',
+                                                                                  'zone__number')
+            if sb_queryset.count() == 0:
+                self.message_user(request, "Turniket topilmadi", level=messages.WARNING)
+                return redirect("admin:exam_exam_changelist")
+
+            swb_to_create = []
+
+            for sb in sb_queryset:
+                ip: IPv4Address = sb.ip_address
+                mac: str = sb.mac_address
+                username: str = sb.username
+                password: str = sb.password
+
+                is_healthy: bool = is_check_healthy(ip, mac, username, password)
+                if not is_healthy:
+                    print(f"{sb.ip_address} ishlamayapti!")
+                    sb.status = False
+                    sb.save()
+                    continue
+
+                delete_all_visitors(ip, mac, username, password)
+                self.message_user(request, f"{ip}: muvaffaqiyatli o'chirildi!")
+
+                if ExamZoneSwingBar.objects.filter(exam=queryset.first(), sb=sb).exists():
+                    continue
+                swb_to_create.append(
+                    ExamZoneSwingBar(
+                        exam=queryset.first(),
+                        sb=sb,
+                        status=True
+                    )
+                )
+            ExamZoneSwingBar.objects.bulk_create(swb_to_create, batch_size=50, ignore_conflicts=True)
+            return redirect("admin:exam_exam_changelist")
+
+    @staticmethod
+    def has_choose_swing_barrier_action_permission(request: HttpRequest):
         user = request.user
         return user.is_admin or user.is_central
 

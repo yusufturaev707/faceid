@@ -1,4 +1,3 @@
-from celery.worker.consumer.mingle import exception
 from django.core.exceptions import ValidationError
 from django.db.models.fields import DateField
 
@@ -13,6 +12,9 @@ from asgiref.sync import sync_to_async
 from concurrent.futures import ProcessPoolExecutor
 
 BATCH_SIZE = 1000
+
+
+# Start load data from API
 
 def get_region(dtm_id: int = 0) -> Region:
     region_mapping = {r.number: r for r in Region.objects.all()}
@@ -44,6 +46,7 @@ async def fetch_total_pages_cefr(session, url):
     except Exception as e:
         print(f"Error1: {e}")
 
+
 async def fetch_data_cefr(session, url, test_day, page):
     """Berilgan sahifadagi ma'lumotlarni olish."""
     try:
@@ -53,10 +56,10 @@ async def fetch_data_cefr(session, url, test_day, page):
     except Exception as e:
         print(f"Error3: {e}")
 
+
 @sync_to_async
 def save_cefr_to_db(test_day: DateField, data, obj: Exam):
     try:
-        # 1. Student obyektlarini tayyorlash
         students_to_create = [
             Student(
                 s_code=user["id"],
@@ -76,37 +79,30 @@ def save_cefr_to_db(test_day: DateField, data, obj: Exam):
             for user in data
         ]
         with transaction.atomic():
-            # 2. Student obyektlarini yaratish
-            # ignore_conflicts=True tufayli Student yaratilmasa, u PsData ga ham qo'shilmaydi.
             Student.objects.bulk_create(students_to_create, batch_size=BATCH_SIZE, ignore_conflicts=True)
 
-            # 3. PsData ga kerak bo'lgan Student obyektlarini bazadan tanlab olish
             imei_list = [user["id"] for user in data]
-            # in_bulk: {imei: Student_obyekti} shaklida lug'at qaytaradi
             students_map = Student.objects.filter(
                 s_code__in=imei_list,
                 e_date=test_day,
                 exam=obj
             ).in_bulk(field_name='s_code')
 
-            # 4. PsData obyektlarini tayyorlash
             ps_data_to_create = []
             for user in data:
                 s_code = user["id"]
                 student_obj = students_map.get(s_code)
 
-                # Agar Student topilgan bo'lsa, PsData ni yaratamiz
                 if student_obj:
                     ps_data_to_create.append(
                         StudentPsData(
-                            student=student_obj,  # OneToOne bog'lanish
+                            student=student_obj,
                             ps_ser=user['psser'],
                             ps_num=int(user['psnum']),
                             phone=user["phone"],
                             img_b64=user["data"],
                         )
                     )
-            # 5. PsData obyektlarini bazaga kiritish
             StudentPsData.objects.bulk_create(ps_data_to_create, batch_size=BATCH_SIZE)
         return f"Student: {len(students_to_create)}, PsData: {len(ps_data_to_create)} yozildi."
     except Exception as e:
@@ -140,3 +136,5 @@ async def get_all_users_cefr(queryset_object: Exam = None):
     except Exception as e:
         print(e)
         return []
+
+# End load data from API
