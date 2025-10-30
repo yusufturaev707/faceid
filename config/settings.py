@@ -220,7 +220,7 @@ UNFOLD = {
     #     "light": lambda request: static("logo-light.svg"),  # light mode
     #     "dark": lambda request: static("logo-dark.svg"),  # dark mode
     # },
-    "SITE_SYMBOL": "settings",  # symbol from icon set
+    "SITE_SYMBOL": "school",  # symbol from icon set
     "SITE_FAVICONS": [
         {
             "rel": "icon",
@@ -260,8 +260,8 @@ UNFOLD = {
         "navigation": [
             {
                 "title": _(""),
-                "separator": False,  # Top border
-                "collapsible": False,  # Collapsible group of links
+                "separator": False,
+                "collapsible": False,
                 "items": [
                     {
                         "title": _("Dashboard"),
@@ -273,130 +273,131 @@ UNFOLD = {
             },
             {
                 "title": _("Test tadbirlar"),
-                "separator": True,  # Top border
-                "collapsible": False,  # Collapsible group of links
+                "separator": False,  # Top border
+                "collapsible": False,
+                "icon": "chart-bar",
                 "items": [
                     {
                         "title": _("Tadbirlar"),
-                        "icon": "people",
+                        "icon": "school",
                         "link": reverse_lazy("admin:exam_exam_changelist"),
                     },
                     {
-                        "title": _("Tanlangan turniketlar"),
-                        "icon": "people",
+                        "title": _("Tayyor turniketlar"),
+                        "icon": "heart_plus",
                         "link": reverse_lazy("admin:exam_examzoneswingbar_changelist"),
                     },
                     {
                         "title": _("Holatlar"),
-                        "icon": "people",
+                        "icon": "data_check",
                         "link": reverse_lazy("admin:exam_examstate_changelist"),
                     },
-                    # {
-                    #     "title": _("Smena"),
-                    #     "icon": "people",
-                    #     "link": reverse_lazy("admin:exam_examshift_changelist"),
-                    # },
                 ],
             },
             {
-                "title": _("Studentlar va qora ro'yxat"),
-                "separator": True,  # Top border
+                "title": _("Studentlar va kirishlar tarixi"),
+                "separator": False,  # Top border
                 "collapsible": False,  # Collapsible group of links
                 "items": [
                     {
                         "title": _("Studentlar"),
-                        "icon": "people",
+                        "icon": "person_shield",
                         "link": reverse_lazy("admin:exam_student_changelist"),
                     },
                     {
-                        "title": _("Kirishlar logi"),
-                        "icon": "people",
+                        "title": _("Kirishlar tarixi"),
+                        "icon": "footprint",
                         "link": reverse_lazy("admin:exam_studentlog_changelist"),
                     },
                     {
+                        "title": _("Chetlatilganlar"),
+                        "icon": "person_off",
+                        "link": reverse_lazy("admin:exam_cheating_changelist"),
+                    },
+                    {
                         "title": _("Qora ro'yxat"),
-                        "icon": "people",
+                        "icon": "skull_list",
                         "link": reverse_lazy("admin:exam_studentblacklist_changelist"),
                     },
                 ],
             },
             {
                 "title": _("Hudud va binolar"),
-                "separator": True,  # Top border
-                "collapsible": False,  # Collapsible group of links
+                "separator": False,  # Top border
+                "collapsible": True,  # Collapsible group of links
                 "items": [
                     {
                         "title": _("Binolar"),
-                        "icon": "people",
+                        "icon": "add_home_work",
                         "link": reverse_lazy("admin:region_zone_changelist"),
                     },
                     {
                         "title": _("Viloyatlar"),
-                        "icon": "people",
+                        "icon": "explore_nearby",
                         "link": reverse_lazy("admin:region_region_changelist"),
                     },
                 ],
             },
             {
                 "title": _("Turniket va monitorlar"),
-                "separator": True,  # Top border
-                "collapsible": False,  # Collapsible group of links
+                "separator": False,  # Top border
+                "collapsible": True,  # Collapsible group of links
                 "items": [
                     {
                         "title": _("Turniketlar"),
-                        "icon": "people",
+                        "icon": "door_sliding",
                         "link": reverse_lazy("admin:region_swingbarrier_changelist"),
                     },
                     {
                         "title": _("Monitorlar"),
-                        "icon": "people",
+                        "icon": "monitor",
                         "link": reverse_lazy("admin:region_monitorpc_changelist"),
                     },
                 ],
             },
             {
-                "title": _("Test"),
-                "separator": True,  # Top border
+                "title": _("Test turlari"),
+                "separator": False,  # Top border
                 "collapsible": True,  # Collapsible group of links
                 "items": [
                     {
                         "title": _("Turlar"),
-                        "icon": "people",
+                        "icon": "assignment",
                         "link": reverse_lazy("admin:exam_test_changelist"),
                     },
                     {
                         "title": _("Smena"),
-                        "icon": "people",
+                        "icon": "alarm_on",
                         "link": reverse_lazy("admin:exam_shift_changelist"),
                     },
                     {
                         "title": _("Chetlatish sabablari"),
-                        "icon": "people",
+                        "icon": "dataset",
                         "link": reverse_lazy("admin:exam_reason_changelist"),
                     },
                 ],
             },
             {
                 "title": _("Xodim va rollar"),
-                "separator": True,  # Top border
+                "separator": False,  # Top border
                 "collapsible": True,  # Collapsible group of links
                 "items": [
                     {
                         "title": _("Xodimlar"),
-                        "icon": "people",
+                        "icon": "badge",
                         "link": reverse_lazy("admin:users_user_changelist"),
                     },
                     {
                         "title": _("Rol"),
-                        "icon": "people",
+                        "icon": "add_moderator",
                         "link": reverse_lazy("admin:users_role_changelist"),
                     },
                 ],
             },
             {
                 "title": _("Tizim monitoring"),
-                "separator": True,  # Top border
-                "collapsible": False,  # Collapsible group of links
+                "separator": False,  # Top border
+                "collapsible": True,  # Collapsible group of links
                 "items": [
                     {
                         "title": _("User loglari"),

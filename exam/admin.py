@@ -1,11 +1,9 @@
 import time
-from ipaddress import IPv4Address
 from django.contrib import admin, messages
 from django.contrib.postgres.fields import ArrayField
 from django.http import HttpRequest
 from django.shortcuts import redirect
 from django.db import models
-from sympy.polys.polyconfig import query
 
 from unfold.admin import ModelAdmin
 from unfold.contrib.forms.widgets import WysiwygWidget, ArrayWidget, UnfoldAdminTextInputWidget, UnfoldAdminSelectWidget
@@ -18,10 +16,9 @@ from asgiref.sync import async_to_sync
 from unfold.paginator import InfinitePaginator
 
 from exam import services
-from exam.models import Exam, Test, ExamState, Student, Shift, StudentPsData, StudentLog, ExamShift, Reason, Cheating, \
-    StudentBlacklist, ExamZoneSwingBar
+from exam.models import Exam, Test, ExamState, Student, Shift, StudentPsData, StudentLog, ExamShift, Reason, Cheating, StudentBlacklist, ExamZoneSwingBar
 from region.models import Zone, SwingBarrier
-from region.utils import is_check_healthy, delete_all_visitors
+from region.utils import is_check_healthy, delete_all_visitors_clean, push_data_main_worker
 
 admin.site.disable_action('delete_selected')
 
@@ -101,55 +98,30 @@ class ExamAdmin(ModelAdmin):
         return user.is_superuser or user.is_central or user.is_admin
 
     @action(
-        description=_("Turniketlarga yuborish"),
+        description=_("Turniketlarga talabgorlar ma'lumotini yuklash"),
         url_path="push-swing-barrier-action",
         permissions=["push_swing_barrier_action"],
         icon="send",
         variant=ActionVariant.PRIMARY,
     )
     def push_swing_barrier_action(self, request: HttpRequest, queryset):
-        success_count = 0
-        error_count = 0
-
-        zones = Zone.objects.filter(status=True, region__status=True).order_by('number')
-
         for exam in queryset:
-            for zone in zones:
-                sb_list = SwingBarrier.objects.filter(zone=zone, status=True).order_by('number')
-                if len(sb_list) == 0:
-                    self.message_user(request, f"{zone.name} da turniket topilmadi!")
-                    continue
-                student_queryset = Student.objects.filter(exam=exam, zone=zone).order_by('id')
-                if student_queryset.count() == 0:
-                    self.message_user(request, f"{zone.name} da topshiradigan studentlar topilmadi!")
-                    continue
-            try:
-                result = async_to_sync(services.send_to_turnstile)(exam)
-                success_count += 1
-            except Exception as e:
-                error_count += 1
-                print(f"Error for exam {exam.id}: {e}")
+            sb_queryset = ExamZoneSwingBar.objects.filter(exam=exam, sb__status=True).order_by('sb__zone__region__number', 'sb__zone__number')
+            if sb_queryset.count() == 0:
+                self.message_user(request, f"Turniket topilmadi!")
+                return redirect("admin:exam_exam_changelist")
+            success_count_user, success_count_img, error_count_user, error_count_img = push_data_main_worker(sb_queryset)
+            self.message_user(request, f"Success_user: {success_count_user} | Success_image: {success_count_img} | Error_user: {error_count_user} | Error_img: {error_count_img}")
 
-        if success_count:
-            self.message_user(
-                request,
-                f"{success_count} ta imtihon muvaffaqiyatli yuborildi!",
-                level=messages.SUCCESS
-            )
-        if error_count:
-            self.message_user(
-                request,
-                f"{error_count} ta imtihonda xatolik yuz berdi!",
-                level=messages.ERROR
-            )
 
     @staticmethod
     def has_push_swing_barrier_action_permission(request: HttpRequest):
         user = request.user
         return user.is_admin or user.is_central
 
+
     @action(
-        description=_("Turniketlarni tanlash"),
+        description=_("Testga turniketlarni tayyorlash"),
         url_path="choose-swing-barrier-action",
         permissions=["choose_swing_barrier_action"],
         icon="send",
@@ -173,7 +145,7 @@ class ExamAdmin(ModelAdmin):
             swb_to_create = []
 
             for sb in sb_queryset:
-                ip: IPv4Address = sb.ip_address
+                ip: str = sb.ip_address
                 mac: str = sb.mac_address
                 username: str = sb.username
                 password: str = sb.password
@@ -181,14 +153,26 @@ class ExamAdmin(ModelAdmin):
                 is_healthy: bool = is_check_healthy(ip, mac, username, password)
                 if not is_healthy:
                     print(f"{sb.ip_address} ishlamayapti!")
-                    sb.status = False
-                    sb.save()
                     continue
 
-                delete_all_visitors(ip, mac, username, password)
-                self.message_user(request, f"{ip}: muvaffaqiyatli o'chirildi!")
+                is_deleted = delete_all_visitors_clean(ip, username, password)
+                if not is_deleted:
+                    self.message_user(request, "Xatolik yuz berdi!", level=messages.ERROR)
+                self.message_user(request, f"{ip}: muvaffaqiyatli o'chirildi!", level=messages.SUCCESS)
 
-                if ExamZoneSwingBar.objects.filter(exam=queryset.first(), sb=sb).exists():
+                exam_sb_queryset = ExamZoneSwingBar.objects.filter(exam=queryset.first(), sb=sb).order_by('id')
+
+                if exam_sb_queryset.exists():
+                    ex_sb = exam_sb_queryset.first()
+                    ex_sb.unpushed_users_imei = ''
+                    ex_sb.unpushed_images_imei = ''
+                    ex_sb.real_count = 0
+                    ex_sb.pushed_user_count = 0
+                    ex_sb.pushed_image_count = 0
+                    ex_sb.err_user_count = 0
+                    ex_sb.err_image_count = 0
+                    ex_sb.status = False
+                    ex_sb.save()
                     continue
                 swb_to_create.append(
                     ExamZoneSwingBar(
@@ -273,7 +257,7 @@ class StudentPsDataInline(admin.StackedInline):
 @admin.register(Student)
 class StudentAdmin(ModelAdmin):
     list_display = ['id', 'last_name', 'first_name', 'middle_name', 'imei', 's_code', 'zone', 'e_date', 'sm', 'gr_n', 'is_entered']
-    list_filter = ['is_ready', 'is_image', 'is_entered', 'is_cheating', 'is_blacklist']
+    list_filter = ['is_ready', 'is_image', 'is_entered', 'is_cheating', 'is_blacklist', 'zone__region']
     readonly_fields = ['id', 'created_at', 'updated_at']
     search_fields = ['last_name', 'first_name', 'middle_name', 'e_date', 'imei', 's_code']
     list_display_links = ['id', 'name']
@@ -301,16 +285,16 @@ class StudentAdmin(ModelAdmin):
 
 @admin.register(StudentLog)
 class StudentLogAdmin(ModelAdmin):
-    list_display = ['id', 'student', 'img_face', 'pass_time', 'accuracy', 'door', 'is_hand_checked', 'mac_address', 'ip_address']
+    list_display = ['id', 'mac_address', 'ip_address', 'student', 'pass_time', 'accuracy', 'door', 'is_hand_checked']
     list_filter = ['is_hand_checked']
-    readonly_fields = ['id']
+    readonly_fields = ['id', 'image_tag']
     search_fields = ['student__imei', 'student__last_name', 'student__first_name', 'mac_address', 'ip_address']
-    list_display_links = ['id', 'name']
+    list_display_links = ['id', 'mac_address']
 
 
 @admin.register(ExamZoneSwingBar)
 class ExamZoneSwingBarAdmin(ModelAdmin):
-    list_display = ['id', 'exam', 'sb', 'real_count', 'pushed_count', 'diff_count', 'status']
+    list_display = ['id', 'exam', 'sb', 'real_count', 'pushed_user_count', 'pushed_image_count', 'err_user_count', 'err_image_count', 'status']
     list_filter = ['status']
     readonly_fields = ['id']
     search_fields = ['student__imei', 'student__last_name', 'student__first_name', 'mac_address', 'ip_address']

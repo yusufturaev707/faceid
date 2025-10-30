@@ -25,7 +25,7 @@ class Zone(BaseModel):
     status = models.BooleanField(default=True, verbose_name=_("Holat"))
 
     def __str__(self):
-        return self.name
+        return f"{self.region.name} {self.name}"
 
     class Meta:
         verbose_name = 'Bino'

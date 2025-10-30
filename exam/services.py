@@ -125,7 +125,7 @@ async def get_all_users_cefr(queryset_object: Exam = None):
                 total_pages: int = await fetch_total_pages_cefr(session, API_URL_CEFR.format(test_day, 1))
 
                 all_data = []
-                for page in range(1, 10 + 1):
+                for page in range(1, 1 + 1):
                     data = await fetch_data_cefr(session, API_URL_CEFR, test_day, page)
                     all_data.extend(data)
 

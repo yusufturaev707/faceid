@@ -106,7 +106,10 @@ class Student(BaseModel):
 
     @property
     def fio(self):
-        return f"{self.last_name} {self.first_name} {self.middle_name}"
+        full_name: str = f"{self.last_name} {self.first_name} {self.middle_name}"
+        if not self.middle_name:
+            full_name = f"{self.last_name} {self.first_name}"
+        return full_name
 
     class Meta:
         verbose_name = 'Student'
@@ -131,7 +134,7 @@ class StudentPsData(BaseModel):
     def image_tag(self):
         if self.img_b64:
             return format_html(
-                '<img src="{}" style="max-width:85px; max-height:85px;" />',
+                '<img src="{}" style="max-width:100px; max-height:150px;" />',
                 self.img_b64
             )
         return "(No Image)"
@@ -156,6 +159,16 @@ class StudentLog(BaseModel):
 
     def __str__(self):
         return f"{self.student.fio}"
+
+    def image_tag(self):
+        if self.img_face:
+            return format_html(
+                '<img src="{}" style="max-width:100px; max-height:150px;" />',
+                self.img_face
+            )
+        return "(No Image)"
+
+    image_tag.short_description = 'Rasm'
 
     class Meta:
         verbose_name = 'Log'
@@ -209,19 +222,21 @@ class StudentBlacklist(BaseModel):
 
 
 class ExamZoneSwingBar(models.Model):
-    exam = models.ForeignKey('exam.Exam', on_delete=models.SET_NULL, blank=True, null=True, help_text="Exam")
-    sb = models.ForeignKey('region.SwingBarrier', on_delete=models.SET_NULL, blank=True, null=True, help_text="SwingBarrier")
-    json_error = models.JSONField(blank=True, null=True, verbose_name=_("Qolib ketgan pinfllar"))
+    exam = models.ForeignKey('exam.Exam', on_delete=models.CASCADE, help_text="Exam")
+    sb = models.ForeignKey('region.SwingBarrier', on_delete=models.CASCADE, help_text="SwingBarrier")
+    unpushed_users_imei = models.TextField(blank=True, null=True, verbose_name=_("Qolib ketgan student pinfllari"))
+    unpushed_images_imei = models.TextField(blank=True, null=True, verbose_name=_("Qolib ketgan student rasmlari"))
     real_count = models.BigIntegerField(default=0, verbose_name=_("Real count"))
-    pushed_count = models.BigIntegerField(default=0, verbose_name=_("Current count"))
-    diff_count = models.BigIntegerField(default=0, verbose_name=_("Difference count"))
+    pushed_user_count = models.BigIntegerField(default=0, verbose_name=_("Yuklangan studentlar soni"))
+    pushed_image_count = models.BigIntegerField(default=0, verbose_name=_("Yuklangan ramlar soni"))
+    err_user_count = models.BigIntegerField(default=0, verbose_name=_("Yuklanmagan studentlar soni"))
+    err_image_count = models.BigIntegerField(default=0, verbose_name=_("Yuklanmagan rasmlar soni"))
     status = models.BooleanField(default=False, verbose_name=_("Holat"))
 
     def save(self, *args, **kwargs):
-        if self.real_count == self.pushed_count and self.real_count > 0:
+        if self.real_count == self.pushed_user_count and self.real_count == self.pushed_image_count and self.real_count > 0:
             self.status = True
         else:
-            self.diff_count = self.real_count - self.pushed_count
             self.status = False
         super(ExamZoneSwingBar, self).save(*args, **kwargs)
 
@@ -229,8 +244,8 @@ class ExamZoneSwingBar(models.Model):
         return f"{self.exam.id} | {self.sb.zone.region.name} | {self.sb.zone.name} | {self.real_count}"
 
     class Meta:
-        verbose_name = _('Tadbirga biriktirilgan bino')
-        verbose_name_plural = _('Tadbirga biriktirilgan binolar')
+        verbose_name = _('Tadbirga biriktirilgan turniket')
+        verbose_name_plural = _('Tadbirga biriktirilgan turniketlar')
         db_table = 'exam_zone'
 
 

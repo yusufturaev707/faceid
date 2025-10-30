@@ -29,12 +29,12 @@ def environment_callback(request):
     env = getattr(settings, 'CURRENT_ENV', 'PROD')
 
     env_config = {
-        'DEV': (_("🔧 RIVOJLANISH"), "warning"),
-        'STAGING': (_("🧪 SINOV"), "info"),
-        'PROD': (_("🚀 ISHCHI"), "success"),
+        'DEV': (_("DEVELOPMENT"), "primary"),
+        'STAGING': (_("TESTING"), "info"),
+        'PROD': (_("PRODUCTION"), "success"),
     }
 
-    return env_config.get(env, (_("ISHCHI"), "success"))
+    return env_config.get(env, (_("PRODUCTION"), "success"))
 
 
 def environment_title_prefix_callback(request):

@@ -1,9 +1,18 @@
+from celery.worker.state import total_count
 from django.contrib import admin
+from django.http import HttpRequest
+from django.shortcuts import redirect
+from django.urls import reverse_lazy
 from import_export.admin import ImportExportModelAdmin
 from unfold.admin import ModelAdmin
 from unfold.contrib.import_export.forms import ExportForm, ImportForm, SelectableFieldsExportForm
 from unfold.contrib.filters.admin import (RangeDateFilter, RangeDateTimeFilter, )
+from unfold.decorators import action
+from unfold.enums import ActionVariant
+from django.utils.translation import gettext_lazy as _
+
 from region.models import Region, Zone, SwingBarrier, MonitorPc
+from region.utils import is_check_healthy
 
 
 @admin.register(Region)
@@ -46,6 +55,33 @@ class SwingBarrierAdmin(ModelAdmin):
     @admin.display(description='Viloyat')
     def get_region(self, obj):
         return obj.zone.region.name
+
+    actions_list = ["check_healthy"]
+
+    @action(description=_("Ish holatini tekshirish"), url_path="check-healthy", icon="check_circle", variant=ActionVariant.PRIMARY,)
+    def check_healthy(self, request: HttpRequest):
+        item_queryset = SwingBarrier.objects.all().order_by('zone__region__number', 'zone__number', 'zone__number')
+        total_sb = item_queryset.count()
+        active_count = 0
+        for item in item_queryset:
+            ip = item.ip_address
+            username = item.username
+            password = item.password
+
+            if is_check_healthy(ip_address=ip, username=username, password=password):
+                item.status = True
+                active_count += 1
+            else:
+                item.status = False
+            item.save()
+        self.message_user(request, f"Umumiy soni: {total_sb}, Aktiv: {active_count}")
+        return redirect(
+            reverse_lazy("admin:region_swingbarrier_changelist")
+        )
+
+    @staticmethod
+    def has_changelist_action_permission(request: HttpRequest):
+        return True
 
 
 @admin.register(MonitorPc)
