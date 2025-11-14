@@ -14,8 +14,6 @@ from concurrent.futures import ProcessPoolExecutor
 BATCH_SIZE = 1000
 
 
-# Start load data from API
-
 def get_region(dtm_id: int = 0) -> Region:
     region_mapping = {r.number: r for r in Region.objects.all()}
     return region_mapping.get(dtm_id, region_mapping.get(14))

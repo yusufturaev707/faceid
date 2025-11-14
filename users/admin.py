@@ -236,9 +236,6 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         ('Muhim sanalar', {
             'fields': ('last_login',),
         }),
-        ('Face Rasm', {
-            'fields': ('img_b64', 'img_vector')
-        }),
     )
 
     compressed_fields = True

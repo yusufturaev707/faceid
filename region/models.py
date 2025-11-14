@@ -57,25 +57,6 @@ class SwingBarrier(BaseModel):
         db_table = 'swing_barrier'
 
 
-class MonitorPc(BaseModel):
-    sb = models.ForeignKey('region.SwingBarrier', verbose_name=_("Turniket"), on_delete=models.SET_NULL, null=True, help_text='Turniket')
-    name = models.CharField(max_length=255, verbose_name=_("Nom"))
-    number = models.IntegerField(default=0, verbose_name=_("Nomer"))
-    ip_address = models.GenericIPAddressField(verbose_name=_("IP address"))
-    mac_address = models.CharField(max_length=255, unique=True, verbose_name=_("MAC address"))
-    status = models.BooleanField(default=False, verbose_name=_("Holat"))
-
-
-    def __str__(self):
-        return self.mac_address
-
-    class Meta:
-        verbose_name = 'MonitorPc'
-        verbose_name_plural = 'Monitorlar'
-        db_table = 'monitor_pc'
-
-
 auditlog.register(Region)
 auditlog.register(Zone)
 auditlog.register(SwingBarrier)
-auditlog.register(MonitorPc)

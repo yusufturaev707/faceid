@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Access Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0e27;
+            min-height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Animated Background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(88, 86, 214, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 40% 20%, rgba(147, 51, 234, 0.2) 0%, transparent 50%);
+            animation: gradientShift 15s ease infinite;
+            z-index: 0;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.1); }
+        }
+
+        /* Modal */
+        .modal {
+            display: flex;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 14, 39, 0.98);
+            backdrop-filter: blur(20px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.hidden {
+            display: none;
+        }
+
+        .modal-content {
+            background: linear-gradient(145deg, #1a1f3a 0%, #0f1729 100%);
+            border: 1px solid rgba(120, 119, 198, 0.3);
+            border-radius: 32px;
+            padding: 60px;
+            max-width: 650px;
+            width: 90%;
+            box-shadow:
+                0 50px 100px rgba(0, 0, 0, 0.8),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            animation: modalSlideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .modal-content::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(120, 119, 198, 0.1) 0%, transparent 70%);
+            animation: rotate 20s linear infinite;
+        }
+
+        @keyframes rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-80px) scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .modal-content h2 {
+            background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 50%, #5b21b6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 50px;
+            font-size: 36px;
+            text-align: center;
+            font-weight: 900;
+            position: relative;
+            z-index: 1;
+            letter-spacing: -0.5px;
+        }
+
+        .form-group {
+            margin-bottom: 32px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 14px;
+            color: #e0e7ff;
+            font-weight: 700;
+            font-size: 15px;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group select {
+            width: 100%;
+            padding: 18px 24px;
+            border: 2px solid rgba(120, 119, 198, 0.3);
+            border-radius: 16px;
+            font-size: 16px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(10px);
+            color: white;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .form-group select:focus {
+            outline: none;
+            border-color: #a78bfa;
+            background: rgba(30, 41, 59, 0.7);
+            box-shadow:
+                0 0 0 4px rgba(167, 139, 250, 0.2),
+                0 8px 24px rgba(167, 139, 250, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .form-group select option {
+            background: #1a1f3a;
+            color: white;
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 20px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 50%, #5b21b6 100%);
+            color: white;
+            border: none;
+            border-radius: 18px;
+            font-size: 17px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            position: relative;
+            z-index: 1;
+            overflow: hidden;
+        }
+
+        .btn-submit::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transition: left 0.6s;
+        }
+
+        .btn-submit:hover:not(:disabled)::before {
+            left: 100%;
+        }
+
+        .btn-submit:hover:not(:disabled) {
+            transform: translateY(-4px);
+            box-shadow:
+                0 20px 50px rgba(139, 92, 246, 0.6),
+                0 0 60px rgba(139, 92, 246, 0.4);
+        }
+
+        .btn-submit:active:not(:disabled) {
+            transform: translateY(-2px);
+        }
+
+        .btn-submit:disabled {
+            background: rgba(75, 85, 99, 0.5);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Main Container */
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 24px;
+            gap: 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(26, 31, 58, 0.7);
+            backdrop-filter: blur(30px);
+            border: 1px solid rgba(167, 139, 250, 0.2);
+            border-radius: 24px;
+            padding: 20px 36px;
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .top-bar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.1), transparent);
+            animation: shimmer 3s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: rgba(30, 41, 59, 0.6);
+            padding: 14px 28px;
+            border-radius: 50px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(167, 139, 250, 0.2);
+        }
+
+        .status-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #ef4444;
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            box-shadow: 0 0 30px currentColor;
+            position: relative;
+        }
+
+        .status-dot::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: inherit;
+            animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+
+        @keyframes ping {
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            75%, 100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+        }
+
+        .status-dot.connected {
+            background: #10b981;
+        }
+
+        .status-text {
+            color: white;
+            font-weight: 700;
+            font-size: 15px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            letter-spacing: 0.5px;
+        }
+
+        .turnstile-info {
+            background: rgba(30, 41, 59, 0.6);
+            padding: 14px 28px;
+            border-radius: 50px;
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid rgba(167, 139, 250, 0.2);
+        }
+
+        .turnstile-info-text {
+            color: #e0e7ff;
+            font-weight: 300;
+            font-size: 24px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            letter-spacing: 0.3px;
+        }
+
+        /* Main Content */
+        .content-wrapper {
+            flex: 1;
+            display: grid;
+            grid-template-rows: 2fr 1fr;
+            gap: 24px;
+            min-height: 0;
+        }
+
+        /* Photos Section */
+        .photos-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 24px;
+        }
+
+        .photo-card {
+            background: rgba(26, 31, 58, 0.6);
+            backdrop-filter: blur(30px);
+            border: 1px solid rgba(167, 139, 250, 0.2);
+            border-radius: 28px;
+            padding: 28px;
+            display: flex;
+            flex-direction: column;
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .photo-card:hover {
+            transform: translateY(-4px);
+            box-shadow:
+                0 30px 80px rgba(0, 0, 0, 0.6),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15);
+            border-color: rgba(167, 139, 250, 0.4);
+        }
+
+        .photo-label {
+            color: #e0e7ff;
+            font-size: 16px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            margin-bottom: 18px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .photo-container {
+            flex: 1;
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 20px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(167, 139, 250, 0.15);
+            box-shadow: inset 0 4px 20px rgba(0, 0, 0, 0.5);
+            position: relative;
+        }
+
+        .photo-container::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(167, 139, 250, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .photo-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            position: relative;
+            z-index: 1;
+        }
+
+        .photo-placeholder {
+            color: rgba(224, 231, 255, 0.4);
+            font-size: 24px;
+            font-weight: 700;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+
+        /* Info Section */
+        .info-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        /* Group Card */
+        .group-card {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.25) 0%, rgba(109, 40, 217, 0.15) 100%);
+            backdrop-filter: blur(30px);
+            border: 1px solid rgba(167, 139, 250, 0.3);
+            border-radius: 28px;
+            {#padding: 10px;#}
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15);
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .group-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+
+            background: radial-gradient(circle, rgba(167, 139, 250, 0.15) 0%, transparent 70%);
+            animation: rotate 15s linear infinite;
+        }
+
+        .group-label {
+            color: #e0e7ff;
+            font-size: 18px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 24px;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+            position: relative;
+            z-index: 1;
+        }
+
+        .group-number {
+            color: white;
+            font-size: 700px;
+            font-weight: 700;
+            line-height: 1;
+            -webkit-background-clip: text;
+            background-color: white;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Student Info Card */
+        .student-info-card {
+            background: rgba(26, 31, 58, 0.6);
+            backdrop-filter: blur(30px);
+            border: 1px solid rgba(167, 139, 250, 0.2);
+            border-radius: 28px;
+            padding: 36px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+
+        .info-row {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 16px;
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 16px;
+            border: 1px solid rgba(167, 139, 250, 0.1);
+            transition: all 0.3s;
+        }
+
+        .info-row:hover {
+            background: rgba(15, 23, 42, 0.7);
+            border-color: rgba(167, 139, 250, 0.3);
+        }
+
+        .info-label {
+            color: rgba(224, 231, 255, 0.7);
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.8px;
+        }
+
+        .info-value {
+            color: white;
+            font-size: 36px;
+            font-weight: 500;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            letter-spacing: -0.5px;
+        }
+
+        .access-status {
+            padding: 18px 36px;
+            border-radius: 50px;
+            font-weight: 900;
+            font-size: 20px;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 2.5px;
+            box-shadow:
+                0 10px 40px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .access-status::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        .access-status.granted {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            box-shadow:
+                0 10px 40px rgba(16, 185, 129, 0.6),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .access-status.denied {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            box-shadow:
+                0 10px 40px rgba(239, 68, 68, 0.6),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .no-data {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(224, 231, 255, 0.5);
+            font-size: 44px;
+            font-weight: 700;
+            text-align: center;
+            grid-column: 1 / -1;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Responsive */
+        @media (max-width: 1400px) {
+            .group-number {
+                font-size: 240px;
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .content-wrapper {
+                grid-template-rows: 1.5fr 1fr;
+            }
+
+            .photos-section {
+                grid-template-columns: 1fr 1fr 1fr;
+            }
+
+            .info-section {
+                grid-template-columns: 1fr 1fr 1fr;
+            }
+
+            .group-number {
+                font-size: 200px;
+            }
+
+            .info-value {
+                font-size: 24px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 12px;
+                gap: 12px;
+            }
+
+            .top-bar {
+                flex-direction: column;
+                gap: 14px;
+                padding: 16px 24px;
+            }
+
+            .content-wrapper {
+                grid-template-rows: auto auto;
+            }
+
+            .photos-section {
+                grid-template-columns: 1fr 1fr 1fr;
+            }
+
+            .info-section {
+                grid-template-columns: 1fr 1fr 1fr;
+            }
+
+            .group-number {
+                font-size: 180px;
+            }
+
+            .info-value {
+                font-size: 20px;
+            }
+
+            .access-status {
+                font-size: 16px;
+                padding: 14px 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+<!-- Modal -->
+<div class="modal" id="turnstileModal">
+    <div class="modal-content">
+        <h2>🏢 Monitor Tizimini Sozlash</h2>
+        <form id="turnstileForm">
+            <div class="form-group">
+                <label for="regionSelect">1. Region tanlang:</label>
+                <select id="regionSelect" required>
+                    <option value="">-- Region tanlang --</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="buildingSelect">2. Bino tanlang:</label>
+                <select id="buildingSelect" required disabled>
+                    <option value="">-- Avval regionni tanlang --</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="turnstileSelect">3. Turniket tanlang:</label>
+                <select id="turnstileSelect" required disabled>
+                    <option value="">-- Avval binoni tanlang --</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn-submit" id="submitBtn" disabled>
+                Monitoring Boshlash
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Main Container -->
+<div class="main-container">
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="connection-status">
+            <div class="status-dot" id="statusDot"></div>
+            <span class="status-text" id="statusText">Kutilmoqda...</span>
+        </div>
+
+        <div class="turnstile-info" id="turnstileInfo" style="display: none;">
+            <span class="turnstile-info-text" id="turnstileInfoText">-</span>
+        </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content-wrapper">
+        <div id="contentArea" class="no-data">
+        </div>
+    </div>
+</div>
+
+<script>
+    let ws;
+    let selectedRegionId = null;
+    let selectedRegionName = null;
+    let selectedBuildingId = null;
+    let selectedBuildingName = null;
+    let selectedTurnstileId = null;
+    let selectedTurnstileName = null;
+
+    window.addEventListener('load', function () {
+        loadRegions();
+        document.getElementById('turnstileModal').classList.remove('hidden');
+    });
+
+    async function loadRegions() {
+        try {
+            const response = await fetch('/api/v1/access_control/regions/');
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                const select = document.getElementById('regionSelect');
+                select.innerHTML = '<option value="">-- Region tanlang --</option>';
+
+                result.data.forEach(region => {
+                    const option = document.createElement('option');
+                    option.value = region.id;
+                    option.dataset.name = region.name;
+                    option.textContent = region.name;
+                    select.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Regionlarni yuklashda xatolik:', error);
+        }
+    }
+
+    document.getElementById('regionSelect').addEventListener('change', async function () {
+        const regionId = this.value;
+        const buildingSelect = document.getElementById('buildingSelect');
+        const turnstileSelect = document.getElementById('turnstileSelect');
+        const submitBtn = document.getElementById('submitBtn');
+
+        if (!regionId) {
+            buildingSelect.innerHTML = '<option value="">-- Avval regionni tanlang --</option>';
+            buildingSelect.disabled = true;
+            turnstileSelect.innerHTML = '<option value="">-- Avval binoni tanlang --</option>';
+            turnstileSelect.disabled = true;
+            submitBtn.disabled = true;
+            return;
+        }
+
+        selectedRegionId = regionId;
+        selectedRegionName = this.options[this.selectedIndex].dataset.name;
+
+        try {
+            const response = await fetch(`/api/v1/access_control/buildings/?region_id=${regionId}`);
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                buildingSelect.innerHTML = '<option value="">-- Bino tanlang --</option>';
+                buildingSelect.disabled = false;
+
+                result.data.forEach(building => {
+                    const option = document.createElement('option');
+                    option.value = building.id;
+                    option.dataset.name = building.name;
+                    option.textContent = building.name;
+                    buildingSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Binolarni yuklashda xatolik:', error);
+        }
+
+        turnstileSelect.innerHTML = '<option value="">-- Avval binoni tanlang --</option>';
+        turnstileSelect.disabled = true;
+        submitBtn.disabled = true;
+    });
+
+    document.getElementById('buildingSelect').addEventListener('change', async function () {
+        const buildingId = this.value;
+        const turnstileSelect = document.getElementById('turnstileSelect');
+        const submitBtn = document.getElementById('submitBtn');
+
+        if (!buildingId) {
+            turnstileSelect.innerHTML = '<option value="">-- Avval binoni tanlang --</option>';
+            turnstileSelect.disabled = true;
+            submitBtn.disabled = true;
+            return;
+        }
+
+        selectedBuildingId = buildingId;
+        selectedBuildingName = this.options[this.selectedIndex].dataset.name;
+
+        try {
+            const response = await fetch(`/api/v1/access_control/turnstiles/?building_id=${buildingId}`);
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                turnstileSelect.innerHTML = '<option value="">-- Turniket tanlang --</option>';
+                turnstileSelect.disabled = false;
+
+                result.data.forEach(turnstile => {
+                    const option = document.createElement('option');
+                    option.value = turnstile.id;
+                    option.dataset.name = turnstile.name;
+                    option.dataset.ip = turnstile.ip_address;
+                    option.textContent = `${turnstile.name} (${turnstile.ip_address})`;
+                    turnstileSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Turniketlarni yuklashda xatolik:', error);
+        }
+
+        submitBtn.disabled = true;
+    });
+
+    document.getElementById('turnstileSelect').addEventListener('change', function () {
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = !this.value;
+
+        if (this.value) {
+            selectedTurnstileId = this.value;
+            const selectedOption = this.options[this.selectedIndex];
+            selectedTurnstileName = selectedOption.dataset.name;
+        }
+    });
+
+    document.getElementById('turnstileForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        document.getElementById('turnstileModal').classList.add('hidden');
+
+        document.getElementById('turnstileInfo').style.display = 'flex';
+        document.getElementById('turnstileInfoText').textContent =
+            `${selectedRegionName} • ${selectedBuildingName} • ${selectedTurnstileName}`;
+
+        connectWebSocket();
+    });
+
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/student-access/`;
+
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = function () {
+            console.log('WebSocket connected');
+            document.getElementById('statusDot').classList.add('connected');
+            document.getElementById('statusText').textContent = 'Ulandi';
+
+            ws.send(JSON.stringify({
+                action: 'select_turnstile',
+                turnstile_id: selectedTurnstileId
+            }));
+        };
+
+        ws.onmessage = function (event) {
+            const message = JSON.parse(event.data);
+            console.log('Received:', message);
+
+            if (message.type === 'student_access') {
+                handleAccessEvent(message.data);
+            }
+        };
+
+        ws.onclose = function () {
+            console.log('WebSocket disconnected');
+            document.getElementById('statusDot').classList.remove('connected');
+            document.getElementById('statusText').textContent = 'Uzildi';
+            setTimeout(connectWebSocket, 3000);
+        };
+
+        ws.onerror = function (error) {
+            console.error('WebSocket error:', error);
+        };
+    }
+
+    function handleAccessEvent(data) {
+        if (data.turnstile_id && data.turnstile_id != selectedTurnstileId) {
+            return;
+        }
+        displayStudent(data);
+    }
+
+    function displayStudent(data) {
+        const contentAreaImage = document.getElementById('contentArea');
+        const realtimeImage = data.image ?
+            `<img src="${data.image}" alt="Real-time">` :
+            '<div class="photo-placeholder">Rasm yo\'q</div>';
+
+        const databaseImage = data.student?.photo ?
+            `<img src="${data.student.photo}" alt="Database">` :
+            '<div class="photo-placeholder">Rasm yo\'q</div>';
+
+        const databaseNImage = data.ps_image ?
+            `<img src="${data.ps_image}" alt="Database">` :
+            '<div class="photo-placeholder">Rasm yo\'q</div>';
+
+        const grN = data.student?.group_number || '0';
+        const studentName = data.student?.name || '-';
+        const test_day = data.student?.test_day || '-';
+        const zone = data.student?.zone || '-';
+        const shift = data.student?.sm || '-';
+        const is_blacklist = data.student.is_warning ? '#FF9800' : '';
+        const accessClass = data.access_granted ? 'granted' : 'denied';
+        const accessText = data.message;
+        const userType = data.event.user_type || ''
+        const role = data.role
+        const normalUserName = data.event.name || 'Unknown'
+
+        let personName = 'Unknown'
+        let groupNumber = '0'
+        let psImage = ''
+        let sm_role = ''
+
+        if(userType === 'normal' && role === 'boss'){
+            personName = normalUserName
+            groupNumber = 'R'
+            psImage = databaseNImage
+            sm_role = 'Rahbar'
+
+        } else if (userType === 'normal' && role === 'supervisor'){
+            personName = normalUserName
+            groupNumber = 'N'
+            psImage = databaseNImage
+            sm_role = 'Nazoratchi'
+        } else if(userType === 'normal' && role == '') {
+            personName = normalUserName
+            groupNumber = '-'
+            psImage = databaseNImage
+            sm_role = 'Unknown'
+        } else if(userType === 'visitor') {
+            personName = studentName
+            groupNumber = grN
+            psImage = databaseImage
+            sm_role = shift
+        }
+
+        contentAreaImage.innerHTML = `
+            <div class="photos-section">
+                <div class="student-info-card">
+                    <div class="info-row">
+                        <div class="access-status ${accessClass}">
+                            ${accessText}
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <hr>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-value">${personName}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-value">${test_day}</div>
+                    </div>
+
+                    <div class="info-row">
+                        <div class="info-value">${sm_role}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="turnstile-info-text">${zone}</div>
+                    </div>
+                </div>
+                <div class="photo-card" style="background-color: ${is_blacklist}">
+                        <div class="group-number">${groupNumber}</div>
+                </div>
+                <div class="photo-card" style="background-color: ${is_blacklist}">
+                    <div class="photo-container">
+                        ${psImage}
+                    </div>
+                </div>
+            </div>
+            <div class="photos-section"><hr></div>
+        `;
+    }
+</script>
+</body>
+</html>

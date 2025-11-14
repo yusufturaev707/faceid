@@ -200,13 +200,14 @@ def add_user_to_swing_barr(ip_address: str, username: str, password: str, obj: S
     check_user = True
     belong_group = "1"
     num_of_face = 0
+    test_day = obj.e_date
 
     is_success = False
 
     valid = {
         "enable": True,
-        "beginTime": f"2025-11-01T{sm_obj.access_time}",
-        "endTime": f"2025-11-01T{sm_obj.expire_time}",
+        "beginTime": f"{test_day}T{sm_obj.access_time}",
+        "endTime": f"{test_day}T{sm_obj.expire_time}",
         "timeType": "local",
     }
 

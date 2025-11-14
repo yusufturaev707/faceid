@@ -11,10 +11,11 @@ urlpatterns = [
 
 urlpatterns += [
     path('admin/', admin.site.urls),
-    path('api/v1/', include('users.urls')),
-    path('api/v1/', include('face.urls')),
-    path('api/v1/', include('exam.urls')),
-    path('api/v1/', include('region.urls')),
+    path('api/v1/users/', include('users.urls')),
+    path('api/v1/face/', include('face.urls')),
+    path('api/v1/exam/', include('exam.urls')),
+    path('api/v1/region/', include('region.urls')),
+    path('api/v1/access_control/', include('access_control.urls')),
 ]
 
 if settings.DEBUG:

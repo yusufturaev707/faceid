@@ -49,7 +49,7 @@ class ExamShiftInline(admin.StackedInline):
 
 @admin.register(Exam)
 class ExamAdmin(ModelAdmin):
-    list_display = ['id', 'test', 'status', 'total_taker', 'start_date', 'finish_date', 'is_finished']
+    list_display = ['id', 'test', 'total_taker', 'start_date', 'finish_date', 'is_finished', 'status']
     list_filter = ['start_date', 'test__name', 'is_finished', 'status']
     readonly_fields = ['id', 'created_at', 'updated_at', 'status']
     search_fields = ['start_date', 'test__name', 'is_finished']
@@ -112,7 +112,6 @@ class ExamAdmin(ModelAdmin):
                 return redirect("admin:exam_exam_changelist")
             success_count_user, success_count_img, error_count_user, error_count_img = push_data_main_worker(sb_queryset)
             self.message_user(request, f"Success_user: {success_count_user} | Success_image: {success_count_img} | Error_user: {error_count_user} | Error_img: {error_count_img}")
-
 
     @staticmethod
     def has_push_swing_barrier_action_permission(request: HttpRequest):
@@ -285,8 +284,8 @@ class StudentAdmin(ModelAdmin):
 
 @admin.register(StudentLog)
 class StudentLogAdmin(ModelAdmin):
-    list_display = ['id', 'mac_address', 'ip_address', 'student', 'pass_time', 'accuracy', 'door', 'is_hand_checked']
-    list_filter = ['is_hand_checked']
+    list_display = ['id', 'mac_address', 'ip_address', 'direction', 'student', 'pass_time', 'status']
+    list_filter = ['is_hand_checked', 'direction', 'status']
     readonly_fields = ['id', 'image_tag']
     search_fields = ['student__imei', 'student__last_name', 'student__first_name', 'mac_address', 'ip_address']
     list_display_links = ['id', 'mac_address']
@@ -295,7 +294,7 @@ class StudentLogAdmin(ModelAdmin):
 @admin.register(ExamZoneSwingBar)
 class ExamZoneSwingBarAdmin(ModelAdmin):
     list_display = ['id', 'exam', 'sb', 'real_count', 'pushed_user_count', 'pushed_image_count', 'err_user_count', 'err_image_count', 'status']
-    list_filter = ['status']
+    list_filter = ['status', 'sb__zone__region']
     readonly_fields = ['id']
     search_fields = ['student__imei', 'student__last_name', 'student__first_name', 'mac_address', 'ip_address']
     list_display_links = ['id', 'exam']

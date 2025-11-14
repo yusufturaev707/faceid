@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from region.models import Region, Zone, SwingBarrier, MonitorPc
+from region.models import Region, Zone, SwingBarrier
 
 
 class RegionSerializer(serializers.ModelSerializer):
@@ -23,11 +23,3 @@ class SwingBarrierSerializer(serializers.ModelSerializer):
     class Meta:
         model = SwingBarrier
         fields = ['id', 'zone', 'name', 'model', 'number', 'brand', 'serial_number', 'ip_address', 'mac_address', 'port', 'status']
-
-
-
-class MonitorPcSerializer(serializers.ModelSerializer):
-    zone = ZoneSerializer(read_only=True)
-    class Meta:
-        model = MonitorPc
-        fields = ['id', 'sb', 'name', 'number', 'ip_address', 'mac_address', 'status']

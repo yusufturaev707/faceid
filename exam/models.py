@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from django.utils.html import format_html
 from pgvector.django import VectorField
 from auditlog.registry import auditlog
@@ -148,7 +149,20 @@ class StudentPsData(BaseModel):
 
 
 class StudentLog(BaseModel):
+    DIRECTION_CHOICES = [
+        ('entry', 'Enter'),
+        ('exit', 'Exit'),
+        ('unknown', 'Unknown'),
+    ]
+
+    STATUS_CHOICES = [
+        ('approved', 'Opened'),
+        ('denied', 'Deny'),
+        ('not_open', 'Not Opened'),
+    ]
+
     student = models.ForeignKey("exam.Student", on_delete=models.SET_NULL, related_name='student_logs', blank=True, null=True, verbose_name=_("Student"))
+    employee_no = models.CharField(max_length=100, db_index=True, verbose_name='Student ID')
     img_face = models.TextField(blank=True, null=True, verbose_name=_("O'tgandagi rasm"))
     door = models.PositiveSmallIntegerField(default=0, verbose_name=_("Kirdi|Chiqdi eshik"))
     accuracy = models.PositiveSmallIntegerField(default=0, verbose_name=_("O'xshashlik"))
@@ -156,6 +170,10 @@ class StudentLog(BaseModel):
     ip_address = models.GenericIPAddressField(verbose_name=_("IP address"))
     mac_address = models.CharField(verbose_name=_("MAC address"))
     is_hand_checked = models.BooleanField(default=False, verbose_name=_("Qo'lda tekshirilgan"))
+    direction = models.CharField(max_length=20, choices=DIRECTION_CHOICES, default='entry', verbose_name='Yo\'nalish')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='', db_index=True, verbose_name='Holat')
+    requires_verification = models.BooleanField(default=False, db_index=True, verbose_name='Tasdiqlash kerakmi')
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True, verbose_name='Vaqt')
 
     def __str__(self):
         return f"{self.student.fio}"
@@ -174,6 +192,15 @@ class StudentLog(BaseModel):
         verbose_name = 'Log'
         verbose_name_plural = 'Loglar'
         db_table = 'student_log'
+        indexes = [
+            models.Index(fields=['-timestamp', 'status']),
+            models.Index(fields=['employee_no', '-timestamp']),
+        ]
+
+    def mark_as_processed(self, approved=True):
+        """Qayta ishlangan deb belgilash"""
+        self.status = 'approved' if approved else 'denied'
+        self.save()
 
 
 class Reason(BaseModel):
@@ -246,7 +273,7 @@ class ExamZoneSwingBar(models.Model):
     class Meta:
         verbose_name = _('Tadbirga biriktirilgan turniket')
         verbose_name_plural = _('Tadbirga biriktirilgan turniketlar')
-        db_table = 'exam_zone'
+        db_table = 'exam_zone_swing_bar'
 
 
 auditlog.register(Cheating)

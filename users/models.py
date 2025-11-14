@@ -2,7 +2,6 @@ from django.contrib.auth.base_user import AbstractBaseUser
 from django.contrib.auth.models import PermissionsMixin, Group
 from auditlog.registry import auditlog
 from django.db import models
-from pgvector.django import VectorField
 from django.utils.translation import gettext_lazy as _
 
 from users.user_manager import UserManager
@@ -19,8 +18,6 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     is_active = models.BooleanField(default=True, verbose_name=_('Aktiv'))
     telegram_id = models.CharField(max_length=20, blank=True, null=True, unique=True, verbose_name=_('TelegramID'))
     region = models.ForeignKey('region.Region', on_delete=models.SET_NULL, blank=True, null=True, verbose_name=_('Viloyat'))
-    img_b64 = models.TextField(blank=True, null=True, verbose_name=_('Rasm'))
-    img_vector = VectorField(dimensions=512, blank=True, null=True, verbose_name=_('Vector'))
 
     objects = UserManager()
     USERNAME_FIELD = 'username'
@@ -66,7 +63,6 @@ class Role(Group):
         # Admin panelidagi nomlari
         verbose_name = _("Rol")
         verbose_name_plural = _("Rollar")
-
 
 auditlog.register(User)
 auditlog.register(Role)

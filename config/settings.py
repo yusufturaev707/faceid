@@ -6,6 +6,7 @@ from django.conf import settings
 from dotenv import load_dotenv
 from django.urls import reverse_lazy, reverse
 from django.utils.translation import gettext_lazy as _
+from decouple import config
 
 load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -45,6 +46,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     "corsheaders",
+    "channels",
     "django_filters",
     "pgvector.django",
     "import_export",
@@ -54,6 +56,7 @@ INSTALLED_APPS = [
     'users.apps.UsersConfig',
     'region.apps.RegionConfig',
     'exam.apps.ExamConfig',
+    'access_control.apps.AccessControlConfig',
 ]
 
 CRISPY_TEMPLATE_PACK = "unfold_crispy"
@@ -166,6 +169,10 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
     "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend",
     ],
@@ -207,7 +214,7 @@ from django.templatetags.static import static
 
 UNFOLD = {
     "SITE_TITLE": "My admin",
-    "SITE_HEADER": "FACE ID ADMIN PANEL",
+    "SITE_HEADER": "FACE ID ADMIN",
     "SITE_SUBHEADER": "Turniketlar boshqaruvi",
     "SITE_URL": "/",
     # "SITE_ICON": lambda request: static("logo/Logo.png"),  # both modes, optimise for 32px height
@@ -281,16 +288,45 @@ UNFOLD = {
                         "title": _("Tadbirlar"),
                         "icon": "school",
                         "link": reverse_lazy("admin:exam_exam_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
                     },
                     {
                         "title": _("Tayyor turniketlar"),
                         "icon": "heart_plus",
                         "link": reverse_lazy("admin:exam_examzoneswingbar_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
                     },
                     {
                         "title": _("Holatlar"),
                         "icon": "data_check",
                         "link": reverse_lazy("admin:exam_examstate_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
+                    },
+                ],
+            },
+            {
+                "title": _("Vakil va nazoratchilar"),
+                "separator": False,  # Top border
+                "collapsible": False,
+                "icon": "chart-bar",
+                "items": [
+                    {
+                        "title": _("Vakil va nazoratchilar"),
+                        "icon": "badge",
+                        "link": reverse_lazy("admin:access_control_normaluser_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
+                    },
+                    {
+                        "title": _("Binoga kirish tarixi"),
+                        "icon": "footprint",
+                        "link": reverse_lazy("admin:access_control_normaluserlog_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
+                    },
+                    {
+                        "title": _("Rol"),
+                        "icon": "settings",
+                        "link": reverse_lazy("admin:access_control_staffrole_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
                     },
                 ],
             },
@@ -303,43 +339,30 @@ UNFOLD = {
                         "title": _("Studentlar"),
                         "icon": "person_shield",
                         "link": reverse_lazy("admin:exam_student_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
                     },
                     {
                         "title": _("Kirishlar tarixi"),
                         "icon": "footprint",
                         "link": reverse_lazy("admin:exam_studentlog_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
                     },
                     {
                         "title": _("Chetlatilganlar"),
                         "icon": "person_off",
                         "link": reverse_lazy("admin:exam_cheating_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
                     },
                     {
                         "title": _("Qora ro'yxat"),
                         "icon": "skull_list",
                         "link": reverse_lazy("admin:exam_studentblacklist_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
                     },
                 ],
             },
             {
-                "title": _("Hudud va binolar"),
-                "separator": False,  # Top border
-                "collapsible": True,  # Collapsible group of links
-                "items": [
-                    {
-                        "title": _("Binolar"),
-                        "icon": "add_home_work",
-                        "link": reverse_lazy("admin:region_zone_changelist"),
-                    },
-                    {
-                        "title": _("Viloyatlar"),
-                        "icon": "explore_nearby",
-                        "link": reverse_lazy("admin:region_region_changelist"),
-                    },
-                ],
-            },
-            {
-                "title": _("Turniket va monitorlar"),
+                "title": _("Hudud va turniketlar"),
                 "separator": False,  # Top border
                 "collapsible": True,  # Collapsible group of links
                 "items": [
@@ -347,11 +370,19 @@ UNFOLD = {
                         "title": _("Turniketlar"),
                         "icon": "door_sliding",
                         "link": reverse_lazy("admin:region_swingbarrier_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
                     },
                     {
-                        "title": _("Monitorlar"),
-                        "icon": "monitor",
-                        "link": reverse_lazy("admin:region_monitorpc_changelist"),
+                        "title": _("Binolar"),
+                        "icon": "add_home_work",
+                        "link": reverse_lazy("admin:region_zone_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
+                    },
+                    {
+                        "title": _("Viloyatlar"),
+                        "icon": "explore_nearby",
+                        "link": reverse_lazy("admin:region_region_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
                     },
                 ],
             },
@@ -364,16 +395,19 @@ UNFOLD = {
                         "title": _("Turlar"),
                         "icon": "assignment",
                         "link": reverse_lazy("admin:exam_test_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
                     },
                     {
                         "title": _("Smena"),
                         "icon": "alarm_on",
                         "link": reverse_lazy("admin:exam_shift_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
                     },
                     {
                         "title": _("Chetlatish sabablari"),
                         "icon": "dataset",
                         "link": reverse_lazy("admin:exam_reason_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
                     },
                 ],
             },
@@ -386,11 +420,13 @@ UNFOLD = {
                         "title": _("Xodimlar"),
                         "icon": "badge",
                         "link": reverse_lazy("admin:users_user_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
                     },
                     {
                         "title": _("Rol"),
                         "icon": "add_moderator",
                         "link": reverse_lazy("admin:users_role_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
                     },
                 ],
             },
@@ -456,3 +492,28 @@ UNFOLD = {
 }
 
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
+
+
+# Channels Layer (Redis)
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [(config('REDIS_HOST', default='127.0.0.1'),
+                      config('REDIS_PORT', default=6379, cast=int))],
+        },
+    },
+}
+
+# CORS sozlamalari
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # React monitor
+    "http://localhost:5173",  # Vite
+]
+CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000']
+
+BARRIER_CONFIG = {
+    'ip': config('BARRIER_IP', default='192.0.0.64'),
+    'username': config('BARRIER_USERNAME', default='admin'),
+    'password': config('BARRIER_PASSWORD', default='Dtm@13579'),
+}

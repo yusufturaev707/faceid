@@ -11,7 +11,7 @@ from unfold.decorators import action
 from unfold.enums import ActionVariant
 from django.utils.translation import gettext_lazy as _
 
-from region.models import Region, Zone, SwingBarrier, MonitorPc
+from region.models import Region, Zone, SwingBarrier
 from region.utils import is_check_healthy
 
 
@@ -82,12 +82,3 @@ class SwingBarrierAdmin(ModelAdmin):
     @staticmethod
     def has_changelist_action_permission(request: HttpRequest):
         return True
-
-
-@admin.register(MonitorPc)
-class MonitorPcAdmin(ModelAdmin):
-    list_display = ['id', 'sb', 'name', 'number', 'ip_address', 'mac_address', 'status']
-    list_display_links = ['id', 'name']
-    list_filter = ['status']
-    readonly_fields = ['id', 'created_at', 'updated_at']
-    search_fields = ['name', 'number', 'ip_address', 'mac_address']
