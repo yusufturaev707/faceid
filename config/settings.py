@@ -213,7 +213,7 @@ CURRENT_ENV = 'DEV'  # Yoki 'STAGING', 'PROD'
 from django.templatetags.static import static
 
 UNFOLD = {
-    "SITE_TITLE": "My admin",
+    "SITE_TITLE": "FACE ID",
     "SITE_HEADER": "FACE ID ADMIN",
     "SITE_SUBHEADER": "Turniketlar boshqaruvi",
     "SITE_URL": "/",
@@ -291,41 +291,47 @@ UNFOLD = {
                         "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
                     },
                     {
-                        "title": _("Tayyor turniketlar"),
+                        "title": _("Testga biriktirilgan turniketlar"),
                         "icon": "heart_plus",
                         "link": reverse_lazy("admin:exam_examzoneswingbar_changelist"),
-                        "permission": lambda request: request.user.is_admin or request.user.is_central,
+                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
+                    },
+                    {
+                        "title": _("Testga biriktirilgan nazoratchilar"),
+                        "icon": "heart_plus",
+                        "link": reverse_lazy("admin:access_control_eventsupervisor_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
                     },
                     {
                         "title": _("Holatlar"),
                         "icon": "data_check",
                         "link": reverse_lazy("admin:exam_examstate_changelist"),
-                        "permission": lambda request: request.user.is_admin or request.user.is_central,
+                        "permission": lambda request: request.user.is_admin,
                     },
                 ],
             },
             {
-                "title": _("Vakil va nazoratchilar"),
+                "title": _("Xodim va nazoratchilar"),
                 "separator": False,  # Top border
                 "collapsible": False,
                 "icon": "chart-bar",
                 "items": [
                     {
-                        "title": _("Vakil va nazoratchilar"),
+                        "title": _("Nazoratchilar"),
                         "icon": "badge",
-                        "link": reverse_lazy("admin:access_control_normaluser_changelist"),
+                        "link": reverse_lazy("admin:access_control_supervisor_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
+                    },
+                    {
+                        "title": _("Xodimlar"),
+                        "icon": "badge",
+                        "link": reverse_lazy("admin:access_control_staff_changelist"),
                         "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
                     },
                     {
                         "title": _("Binoga kirish tarixi"),
                         "icon": "footprint",
                         "link": reverse_lazy("admin:access_control_normaluserlog_changelist"),
-                        "permission": lambda request: request.user.is_admin or request.user.is_central,
-                    },
-                    {
-                        "title": _("Rol"),
-                        "icon": "settings",
-                        "link": reverse_lazy("admin:access_control_staffrole_changelist"),
                         "permission": lambda request: request.user.is_admin or request.user.is_central,
                     },
                 ],
@@ -339,19 +345,19 @@ UNFOLD = {
                         "title": _("Studentlar"),
                         "icon": "person_shield",
                         "link": reverse_lazy("admin:exam_student_changelist"),
-                        "permission": lambda request: request.user.is_admin or request.user.is_central,
+                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
                     },
                     {
                         "title": _("Kirishlar tarixi"),
                         "icon": "footprint",
                         "link": reverse_lazy("admin:exam_studentlog_changelist"),
-                        "permission": lambda request: request.user.is_admin or request.user.is_central,
+                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
                     },
                     {
                         "title": _("Chetlatilganlar"),
                         "icon": "person_off",
                         "link": reverse_lazy("admin:exam_cheating_changelist"),
-                        "permission": lambda request: request.user.is_admin or request.user.is_central,
+                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
                     },
                     {
                         "title": _("Qora ro'yxat"),
@@ -370,13 +376,13 @@ UNFOLD = {
                         "title": _("Turniketlar"),
                         "icon": "door_sliding",
                         "link": reverse_lazy("admin:region_swingbarrier_changelist"),
-                        "permission": lambda request: request.user.is_admin or request.user.is_central,
+                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
                     },
                     {
                         "title": _("Binolar"),
                         "icon": "add_home_work",
                         "link": reverse_lazy("admin:region_zone_changelist"),
-                        "permission": lambda request: request.user.is_admin or request.user.is_central,
+                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
                     },
                     {
                         "title": _("Viloyatlar"),
@@ -395,13 +401,13 @@ UNFOLD = {
                         "title": _("Turlar"),
                         "icon": "assignment",
                         "link": reverse_lazy("admin:exam_test_changelist"),
-                        "permission": lambda request: request.user.is_admin or request.user.is_central,
+                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
                     },
                     {
                         "title": _("Smena"),
                         "icon": "alarm_on",
                         "link": reverse_lazy("admin:exam_shift_changelist"),
-                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
                     },
                     {
                         "title": _("Chetlatish sabablari"),
@@ -412,7 +418,7 @@ UNFOLD = {
                 ],
             },
             {
-                "title": _("Xodim va rollar"),
+                "title": _("Markaziy xodimlar"),
                 "separator": False,  # Top border
                 "collapsible": True,  # Collapsible group of links
                 "items": [
@@ -426,7 +432,7 @@ UNFOLD = {
                         "title": _("Rol"),
                         "icon": "add_moderator",
                         "link": reverse_lazy("admin:users_role_changelist"),
-                        "permission": lambda request: request.user.is_admin or request.user.is_central,
+                        "permission": lambda request: request.user.is_admin,
                     },
                 ],
             },

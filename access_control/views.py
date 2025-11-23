@@ -2,7 +2,7 @@ from django.shortcuts import render
 import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, permissions
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import json
@@ -12,11 +12,11 @@ from django.utils import timezone
 from email import message_from_bytes
 from email.policy import default
 
-from access_control.models import NormalUser, NormalUserLog
+from access_control.models import Supervisor, NormalUserLog
 from access_control.utils import resize_base64_image
-from exam.models import  ExamZoneSwingBar, StudentLog
+from exam.models import ExamZoneSwingBar, StudentLog, Exam
 from region.models import Region, Zone
-
+from users.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,6 @@ class HikvisionWebhookView(APIView):
                     shift_number,
                     parsed_data
                 )
-
             # Faqat staff yoki nazoratchi uchun tekshirish
             if parsed_data['user_type'] == "normal":
                 print(f"Normal user keldi: {parsed_data.get('name')}")
@@ -71,10 +70,8 @@ class HikvisionWebhookView(APIView):
                     turnstile_id,
                     parsed_data
                 )
-
             # ✅ Agar user_type na 'visitor', na 'normal' bo'lmasa
             return self._error_response("Noma'lum foydalanuvchi turi!")
-
         except Exception as e:
             logger.exception(f"Webhook xatolik: {str(e)}")
             return self._error_response(f"Tizim xatoligi: {str(e)}")
@@ -90,7 +87,6 @@ class HikvisionWebhookView(APIView):
                 b'Content-Type: ' + content_type.encode() + b'\r\n\r\n' + raw_data,
                 policy=default
             )
-
             data = {}
             for part in msg.iter_parts():
                 content_disposition = part.get('Content-Disposition', '')
@@ -127,7 +123,6 @@ class HikvisionWebhookView(APIView):
                     base64_string = resize_base64_image(base64_string)
                     data['live_image'] = base64_string
             return data
-
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             logger.error(f"Parse xatolik: {str(e)}")
             return None
@@ -323,8 +318,8 @@ class HikvisionWebhookView(APIView):
         current_datetime = parsed_data['datetime']
 
         try:
-            normal_user = NormalUser.objects.get(imei=employee_no)
-        except NormalUser.DoesNotExist:
+            supervisor = Supervisor.objects.get(imei=employee_no)
+        except Supervisor.DoesNotExist:
             message = "Siz topilmadingiz!"
             ws_data = {
                 'status': 'error',
@@ -340,7 +335,7 @@ class HikvisionWebhookView(APIView):
             self._send_websocket_message(turnstile_id, ws_data)
             return self._error_response(message)
 
-        if not normal_user.status or normal_user.is_blacklist:
+        if not normal_user.status:
             message = "Sizga bu testda kirishga ruxsat yo'q!"
             ws_data = {
                 'status': 'error',
@@ -651,26 +646,23 @@ class HikvisionWebhookView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-class RegionListView(APIView):
+class ActiveExamListView(APIView):
     """Regionlar ro'yxatini qaytarish"""
 
     def get(self, request):
         try:
-            regions = []
+            exams = []
+            exam_objects = Exam.objects.filter(status__key='ready', is_finished=False).order_by('-id')
 
-            # Region modelidan barcha regionlarni olish
-            region_objects = Region.objects.filter(status=True).order_by('number')
-
-            for region in region_objects:
-                regions.append({
-                    'id': region.id,
-                    'number': region.number,
-                    'name': region.name if hasattr(region, 'name') else f'Region #{region.number}',
+            for item in exam_objects:
+                exams.append({
+                    'id': item.id,
+                    'name': item.test.name,
                 })
 
             return Response({
                 'status': 'success',
-                'data': regions
+                'data': exams
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
@@ -680,34 +672,22 @@ class RegionListView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class BuildingListView(APIView):
-    """Regionga tegishli binolar ro'yxatini qaytarish"""
-
+class ZoneListView(APIView):
     def get(self, request):
         try:
-            region_id = request.GET.get('region_id')
-
-            if not region_id:
-                return Response({
-                    'status': 'error',
-                    'message': 'region_id parameter required'
-                }, status=status.HTTP_400_BAD_REQUEST)
-
             buildings = []
-
-            # Zone modelidan shu regionga tegishli binolarni olish
-            zone_objects = Zone.objects.filter(region_id=region_id, status=True).order_by('id')
+            zone_objects = Zone.objects.filter(region=request.user.region, status=True).order_by('number')
 
             for zone in zone_objects:
                 buildings.append({
                     'id': zone.id,
                     'name': zone.name if hasattr(zone, 'name') else f'Bino #{zone.id}',
-                    'region_id': region_id,
                 })
 
             return Response({
                 'status': 'success',
-                'data': buildings
+                'data': buildings,
+                'region_name': request.user.region.name if hasattr(request.user.region, 'name') else '-',
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
@@ -718,23 +698,20 @@ class BuildingListView(APIView):
 
 
 class TurnstileListView(APIView):
-    """Binoga tegishli turniketlar ro'yxatini qaytarish"""
-
     def get(self, request):
         try:
-            building_id = request.GET.get('building_id')
+            zone_id = request.GET.get('zone_id')
 
-            if not building_id:
+            if not zone_id:
                 return Response({
                     'status': 'error',
-                    'message': 'building_id parameter required'
+                    'message': 'zone_id parameter required'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             turnstiles = []
 
-            # ExamZoneSwingBar modelidan shu binoga (zone) tegishli turniketlarni olish
             exam_zone_sbs = ExamZoneSwingBar.objects.filter(
-                sb__zone_id=building_id
+                sb__zone_id=zone_id, status=True
             ).select_related('sb').order_by('sb__id')
 
             for ezs in exam_zone_sbs:
@@ -745,7 +722,7 @@ class TurnstileListView(APIView):
                     'ip_address': sb.ip_address,
                     'mac_address': sb.mac_address,
                     'location': sb.location if hasattr(sb, 'location') else '',
-                    'building_id': building_id,
+                    'zone_id': zone_id,
                 })
 
             return Response({

@@ -248,7 +248,7 @@ class StudentBlacklist(BaseModel):
         db_table = 'student_blacklist'
 
 
-class ExamZoneSwingBar(models.Model):
+class ExamZoneSwingBar(BaseModel):
     exam = models.ForeignKey('exam.Exam', on_delete=models.CASCADE, help_text="Exam")
     sb = models.ForeignKey('region.SwingBarrier', on_delete=models.CASCADE, help_text="SwingBarrier")
     unpushed_users_imei = models.TextField(blank=True, null=True, verbose_name=_("Qolib ketgan student pinfllari"))

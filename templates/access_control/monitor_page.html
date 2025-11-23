@@ -645,9 +645,9 @@
         <h2>🏢 Monitor Tizimini Sozlash</h2>
         <form id="turnstileForm">
             <div class="form-group">
-                <label for="regionSelect">1. Region tanlang:</label>
-                <select id="regionSelect" required>
-                    <option value="">-- Region tanlang --</option>
+                <label for="examSelect">1. Joriy testni tanlang:</label>
+                <select id="examSelect" required>
+                    <option value="">-- Test tanlang --</option>
                 </select>
             </div>
 
@@ -696,47 +696,49 @@
 <script>
     let ws;
     let selectedRegionId = null;
+    let selectedExamId = null;
     let selectedRegionName = null;
+    let selectedExamName = null;
     let selectedBuildingId = null;
     let selectedBuildingName = null;
     let selectedTurnstileId = null;
     let selectedTurnstileName = null;
 
     window.addEventListener('load', function () {
-        loadRegions();
+        loadExams();
         document.getElementById('turnstileModal').classList.remove('hidden');
     });
 
-    async function loadRegions() {
+    async function loadExams() {
         try {
-            const response = await fetch('/api/v1/access_control/regions/');
+            const response = await fetch('/api/v1/access_control/active-exam-list/');
             const result = await response.json();
 
             if (result.status === 'success') {
-                const select = document.getElementById('regionSelect');
-                select.innerHTML = '<option value="">-- Region tanlang --</option>';
+                const select = document.getElementById('examSelect');
+                select.innerHTML = '<option value="">-- Test tanlang --</option>';
 
-                result.data.forEach(region => {
+                result.data.forEach(exam => {
                     const option = document.createElement('option');
-                    option.value = region.id;
-                    option.dataset.name = region.name;
-                    option.textContent = region.name;
+                    option.value = exam.id;
+                    option.dataset.name = exam.name;
+                    option.textContent = exam.name;
                     select.appendChild(option);
                 });
             }
         } catch (error) {
-            console.error('Regionlarni yuklashda xatolik:', error);
+            console.error('Testlarni yuklashda xatolik:', error);
         }
     }
 
-    document.getElementById('regionSelect').addEventListener('change', async function () {
-        const regionId = this.value;
+    document.getElementById('examSelect').addEventListener('change', async function () {
+        const examId = this.value;
         const buildingSelect = document.getElementById('buildingSelect');
         const turnstileSelect = document.getElementById('turnstileSelect');
         const submitBtn = document.getElementById('submitBtn');
 
-        if (!regionId) {
-            buildingSelect.innerHTML = '<option value="">-- Avval regionni tanlang --</option>';
+        if (!examId) {
+            buildingSelect.innerHTML = '<option value="">-- Avval testni tanlang --</option>';
             buildingSelect.disabled = true;
             turnstileSelect.innerHTML = '<option value="">-- Avval binoni tanlang --</option>';
             turnstileSelect.disabled = true;
@@ -744,12 +746,16 @@
             return;
         }
 
-        selectedRegionId = regionId;
-        selectedRegionName = this.options[this.selectedIndex].dataset.name;
+        selectedExamId = examId;
+        selectedExamName = this.options[this.selectedIndex].dataset.name;
 
         try {
-            const response = await fetch(`/api/v1/access_control/buildings/?region_id=${regionId}`);
+            const response = await fetch(`/api/v1/access_control/zone-list/`);
             const result = await response.json();
+
+            console.log(result)
+
+            selectedRegionName = result['region_name'];
 
             if (result.status === 'success') {
                 buildingSelect.innerHTML = '<option value="">-- Bino tanlang --</option>';
@@ -788,7 +794,7 @@
         selectedBuildingName = this.options[this.selectedIndex].dataset.name;
 
         try {
-            const response = await fetch(`/api/v1/access_control/turnstiles/?building_id=${buildingId}`);
+            const response = await fetch(`/api/v1/access_control/turnstile-list/?zone_id=${buildingId}`);
             const result = await response.json();
 
             if (result.status === 'success') {
@@ -897,7 +903,7 @@
         const test_day = data.student?.test_day || '-';
         const zone = data.student?.zone || '-';
         const shift = data.student?.sm || '-';
-        const is_blacklist = data.student.is_warning ? '#FF9800' : '';
+        const is_blacklist = data.student?.is_warning ? '#FF9800' : '';
         const accessClass = data.access_granted ? 'granted' : 'denied';
         const accessText = data.message;
         const userType = data.event.user_type || ''

@@ -109,11 +109,13 @@ def save_cefr_to_db(test_day: DateField, data, obj: Exam):
 
 
 async def get_all_users_cefr(queryset_object: Exam = None):
+    total_count = 0
     try:
         time_difference = queryset_object.finish_date - queryset_object.start_date
         one_day = timedelta(days=1)
         current_date = queryset_object.start_date
         test_days = [current_date]
+
         for i in range(time_difference.days):
             current_date += one_day
             test_days.append(current_date)
@@ -123,16 +125,17 @@ async def get_all_users_cefr(queryset_object: Exam = None):
                 total_pages: int = await fetch_total_pages_cefr(session, API_URL_CEFR.format(test_day, 1))
 
                 all_data = []
-                for page in range(1, 1 + 1):
+                for page in range(1, total_pages + 1):
                     data = await fetch_data_cefr(session, API_URL_CEFR, test_day, page)
                     all_data.extend(data)
 
                 await save_cefr_to_db(test_day, all_data, queryset_object)
+                total_count += len(all_data)
                 print(f"Inserted {len(all_data)} items for test_day {test_day} into the database.")
                 await asyncio.sleep(2)
-                return all_data
+            return total_count
     except Exception as e:
         print(e)
-        return []
+        return total_count
 
 # End load data from API

@@ -22,6 +22,33 @@ def replace_image_to_none_image():
     return base64_image
 
 
+def get_personal_data(imi: str = None, ps: str = None):
+    try:
+        data = requests.get(url=const.API_PM_URL, params={'imie': imi, 'ps': ps}, verify=False)
+        data = data.json()
+        if data['status'] == 0:
+            return {
+                "status": 0,
+                "message": "Ma'lumot topilmadi!",
+            }
+        if data['status'] == 1:
+            data = {
+                "sname": str(data['data']['sname']),
+                "fname": str(data['data']['fname']),
+                "mname": str(data['data']['mname']),
+                "sex": int(data['data']['sex']),
+                "photo": str(data['data']['photo']),
+                "status": 1,
+                "message": "Ma'lumot yangilandi!",
+            }
+            return data
+    except Exception as e:
+        return {
+                "status": 0,
+                "message": f"{e}",
+            }
+
+
 # unfold callback
 
 def environment_callback(request):

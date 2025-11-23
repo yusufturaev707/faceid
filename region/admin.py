@@ -13,6 +13,7 @@ from django.utils.translation import gettext_lazy as _
 
 from region.models import Region, Zone, SwingBarrier
 from region.utils import is_check_healthy
+from users.models import User
 
 
 @admin.register(Region)
@@ -43,6 +44,18 @@ class ZoneAdmin(ModelAdmin, ImportExportModelAdmin):
     readonly_fields = ['id', 'created_at', 'updated_at']
     search_fields = ['region__name', 'name']
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        user = User.objects.get(id=request.user.id)
+
+        if user.is_admin or user.is_central:
+            return qs
+
+        user_region = getattr(request.user, "region", None)
+        if user_region:
+            return qs.filter(region=user_region)
+        return qs.none()
+
 
 @admin.register(SwingBarrier)
 class SwingBarrierAdmin(ModelAdmin):
@@ -55,6 +68,18 @@ class SwingBarrierAdmin(ModelAdmin):
     @admin.display(description='Viloyat')
     def get_region(self, obj):
         return obj.zone.region.name
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        user = User.objects.get(id=request.user.id)
+
+        if user.is_admin or user.is_central:
+            return qs
+
+        user_region = getattr(request.user, "region", None)
+        if user_region:
+            return qs.filter(zone__region=user_region)
+        return qs.none()
 
     actions_list = ["check_healthy"]
 

@@ -206,6 +206,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
     search_fields = ('username', 'first_name', 'last_name',)
     readonly_fields = ('last_login',)
     filter_horizontal = ('groups',)
+    list_display_links = ('id', 'username', 'last_name', 'first_name', 'middle_name')
 
     add_fieldsets = (
         (None, {
@@ -401,3 +402,4 @@ except admin.sites.NotRegistered:
 @admin.register(Role)
 class RoleAdmin(BaseGroupAdmin, ModelAdmin):
     list_display = ('id', 'name')
+    list_display_links = ('id', 'name')
