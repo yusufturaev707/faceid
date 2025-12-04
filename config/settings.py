@@ -6,7 +6,7 @@ from django.conf import settings
 from dotenv import load_dotenv
 from django.urls import reverse_lazy, reverse
 from django.utils.translation import gettext_lazy as _
-from decouple import config
+# from decouple import config
 
 load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
