@@ -12,11 +12,11 @@ from django.utils import timezone
 from email import message_from_bytes
 from email.policy import default
 
-from access_control.models import Supervisor, NormalUserLog
+from supervisor.models import Supervisor, EventSupervisor
+from access_control.models import NormalUserLog
 from access_control.utils import resize_base64_image
 from exam.models import ExamZoneSwingBar, StudentLog, Exam
 from region.models import Region, Zone
-from users.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -47,13 +47,13 @@ class HikvisionWebhookView(APIView):
             exam_sb = turnstile_result['exam_sb']
             turnstile_id = exam_sb.sb.id
 
-            if parsed_data['user_type'] == 'visitor':
-                shift_number = self._get_current_shift(exam_sb.exam, parsed_data['datetime'])
-                if not shift_number:
-                    message = "Hozir kirish vaqti emas!"
-                    self._send_websocket_error(turnstile_id, parsed_data, message)
-                    return self._error_response(message)
+            shift_number = self._get_current_shift(exam_sb.exam, parsed_data['datetime'])
+            if not shift_number:
+                message = "Hozir kirish vaqti emas!"
+                self._send_websocket_error(turnstile_id, parsed_data, message)
+                return self._error_response(message)
 
+            if parsed_data['user_type'] == 'visitor':
                 # Talabani tekshirish va ruxsat berish
                 return self._process_student_access(
                     exam_sb,
@@ -68,6 +68,7 @@ class HikvisionWebhookView(APIView):
                 return self._process_normal_user_access(
                     exam_sb,
                     turnstile_id,
+                    shift_number,
                     parsed_data
                 )
             # ✅ Agar user_type na 'visitor', na 'normal' bo'lmasa
@@ -261,8 +262,7 @@ class HikvisionWebhookView(APIView):
                         ip_address=parsed_data['ip_address'],
                         mac_address=parsed_data['mac_address'],
                         employee_no=parsed_data['employee_no'],
-                        direction='entry' if parsed_data['door_no'] == 1 else 'exit' if parsed_data[
-                                                                                            'door_no'] == 2 else 'unknown',
+                        direction='entry' if parsed_data['door_no'] == 1 else 'exit' if parsed_data['door_no'] == 2 else 'unknown',
                         requires_verification=True,
                         img_face=parsed_data['live_image'],
                         status='approved',
@@ -279,8 +279,7 @@ class HikvisionWebhookView(APIView):
                         ip_address=parsed_data['ip_address'],
                         mac_address=parsed_data['mac_address'],
                         employee_no=parsed_data['employee_no'],
-                        direction='entry' if parsed_data['door_no'] == 1 else 'exit' if parsed_data[
-                                                                                            'door_no'] == 2 else 'unknown',
+                        direction='entry' if parsed_data['door_no'] == 1 else 'exit' if parsed_data['door_no'] == 2 else 'unknown',
                         requires_verification=True,
                         img_face=parsed_data['live_image'],
                         status='not_open',
@@ -306,20 +305,23 @@ class HikvisionWebhookView(APIView):
                 )
             except Exception as e:
                 print(e)
-            # ✅ TO'G'IRLANGAN: return qo'shildi
+
             return self._deny_access(
                 turnstile_id, student, student_ps_data,
                 shift_name, parsed_data, is_same_zone, is_not_cheating
             )
 
-    def _process_normal_user_access(self, exam_sb, turnstile_id, parsed_data):
+    def _process_normal_user_access(self, exam_sb, turnstile_id, shift_number, parsed_data):
         """Normal user kirishini qayta ishlash"""
         employee_no = parsed_data['employee_no']
         current_datetime = parsed_data['datetime']
+        current_date = current_datetime.date()
+        exam = exam_sb.exam
 
-        try:
-            supervisor = Supervisor.objects.get(imei=employee_no)
-        except Supervisor.DoesNotExist:
+        e_supervisor_queryset = EventSupervisor.objects.filter(supervisor__imei=employee_no, exam=exam, supervisor__status=True)
+        role = 'unknown'
+
+        if not e_supervisor_queryset.exists():
             message = "Siz topilmadingiz!"
             ws_data = {
                 'status': 'error',
@@ -327,78 +329,133 @@ class HikvisionWebhookView(APIView):
                 'turnstile_id': turnstile_id,
                 'turnstile_info': self._get_turnstile_info(parsed_data),
                 'event': self._get_event_info(parsed_data),
-                'student': {},
-                'role': 'unknown',
+                'student': None,
+                'role': role,
+                'zone': None,
                 'message': message,
                 'timestamp': timezone.now().isoformat()
             }
+
             self._send_websocket_message(turnstile_id, ws_data)
             return self._error_response(message)
 
-        if not normal_user.status:
-            message = "Sizga bu testda kirishga ruxsat yo'q!"
-            ws_data = {
-                'status': 'error',
-                'access_granted': False,
-                'turnstile_id': turnstile_id,
-                'turnstile_info': self._get_turnstile_info(parsed_data),
-                'event': self._get_event_info(parsed_data),
-                'ps_image': normal_user.img_b64 if normal_user.img_b64 else '',
-                'student': {},
-                'role': normal_user.role.code if normal_user.role else 'unknown',
-                'message': message,
-                'timestamp': timezone.now().isoformat()
-            }
-            try:
-                NormalUserLog.objects.create(
-                    normal_user=normal_user,
-                    door=parsed_data['door_no'],
-                    ip_address=parsed_data['ip_address'],
-                    mac_address=parsed_data['mac_address'],
-                    employee_no=parsed_data['employee_no'],
-                    direction='entry' if parsed_data['door_no'] == 1 else 'exit' if parsed_data[
-                                                                                        'door_no'] == 2 else 'unknown',
-                    img_face=parsed_data['live_image'],
-                    status='denied',
-                    pass_time=parsed_data['datetime']
+        normal_user = e_supervisor_queryset.first()
+
+        if normal_user.supervisor.role == 'supervisor':
+            q_supervisor = e_supervisor_queryset.filter(test_date=current_date, sm=shift_number)
+            if q_supervisor.exists():
+                supervisor_ob = q_supervisor.first()
+
+                is_opened = self._grant_access_normal_user(
+                    exam_sb, turnstile_id, supervisor_ob, parsed_data
                 )
-            except Exception as e:
-                print(e)
-            self._send_websocket_message(turnstile_id, ws_data)
-            return self._error_response(message)
 
-        access_datetime = normal_user.access_datetime
-        expire_datetime = normal_user.expired_datetime
+                supervisor_ob.is_participated = True
+                supervisor_ob.save()
 
-        is_same_zone_sb = normal_user.region == exam_sb.sb.zone.region
-        is_access_enter_zone = False
+                if is_opened:
+                    try:
+                        NormalUserLog.objects.create(
+                            normal_user_id=supervisor_ob.id,
+                            normal_user_type=normal_user.supervisor.role,
+                            zone = exam_sb.sb.zone,
+                            employee_no=employee_no,
+                            last_name=normal_user.supervisor.last_name,
+                            first_name=normal_user.supervisor.first_name,
+                            middle_name=normal_user.supervisor.middle_name,
+                            img_face=parsed_data['live_image'],
+                            door=parsed_data['door_no'],
+                            pass_time=parsed_data['datetime'],
+                            ip_address=parsed_data['ip_address'],
+                            mac_address=parsed_data['mac_address'],
+                            direction='entry' if parsed_data['door_no'] == 1 else 'exit' if parsed_data[
+                                                                                                'door_no'] == 2 else 'unknown',
+                            status='approved',
+                        )
+                    except Exception as e:
+                        print(e)
+                    return self._success_response()
+                else:
+                    try:
+                        NormalUserLog.objects.create(
+                            normal_user_id=normal_user.id,
+                            normal_user_type=normal_user.supervisor.role,
+                            zone = exam_sb.sb.zone,
+                            employee_no=employee_no,
+                            last_name=normal_user.supervisor.last_name,
+                            first_name=normal_user.supervisor.first_name,
+                            middle_name=normal_user.supervisor.middle_name,
+                            img_face=parsed_data['live_image'],
+                            door=parsed_data['door_no'],
+                            pass_time=parsed_data['datetime'],
+                            ip_address=parsed_data['ip_address'],
+                            mac_address=parsed_data['mac_address'],
+                            direction='entry' if parsed_data['door_no'] == 1 else 'exit' if parsed_data[
+                                                                                                'door_no'] == 2 else 'unknown',
+                            status='not_open',
+                        )
+                    except Exception as e:
+                        print(e)
+                    return self._error_response("Eshik ochilmadi")
+            else:
+                try:
+                    NormalUserLog.objects.create(
+                        normal_user_id=normal_user.id,
+                        normal_user_type=normal_user.supervisor.role,
+                        zone = exam_sb.sb.zone,
+                        employee_no=employee_no,
+                        last_name=normal_user.supervisor.last_name,
+                        first_name=normal_user.supervisor.first_name,
+                        middle_name=normal_user.supervisor.middle_name,
+                        img_face=parsed_data['live_image'],
+                        door=parsed_data['door_no'],
+                        pass_time=parsed_data['datetime'],
+                        ip_address=parsed_data['ip_address'],
+                        mac_address=parsed_data['mac_address'],
+                        direction='entry' if parsed_data['door_no'] == 1 else 'exit' if parsed_data[
+                                                                                            'door_no'] == 2 else 'unknown',
+                        status='not_open',
+                    )
+                except Exception as e:
+                    print(e)
 
-        if normal_user.role.code == 'boss':
-            is_access_enter_zone = is_same_zone_sb = True
-        elif normal_user.role.code == 'supervisor':
-            access_datetime_naive = datetime.datetime.fromisoformat(str(access_datetime)).replace(tzinfo=None)
-            expire_datetime_naive = datetime.datetime.fromisoformat(str(expire_datetime)).replace(tzinfo=None)
-
-            if access_datetime_naive <= current_datetime <= expire_datetime_naive:
-                is_access_enter_zone = True
-
-        if is_same_zone_sb and is_access_enter_zone:
+                ws_data = {
+                    'status': 'error',
+                    'access_granted': False,
+                    'turnstile_id': turnstile_id,
+                    'turnstile_info': self._get_turnstile_info(parsed_data),
+                    'event': self._get_event_info(parsed_data),
+                    'student': None,
+                    'message': '',
+                    'timestamp': timezone.now().isoformat()
+                }
+                self._send_websocket_message(turnstile_id, ws_data)
+                return self._error_response("Eshik ochilmadi")
+        elif normal_user.supervisor.role == 'staff':
             is_opened = self._grant_access_normal_user(
                 exam_sb, turnstile_id, normal_user, parsed_data
             )
+
+            normal_user.is_participated = True
+            normal_user.save()
+
             if is_opened:
                 try:
                     NormalUserLog.objects.create(
-                        normal_user=normal_user,
+                        normal_user_id=normal_user.id,
+                        normal_user_type=normal_user.supervisor.role,
+                        zone = exam_sb.sb.zone,
+                        employee_no = employee_no,
+                        last_name = normal_user.supervisor.last_name,
+                        first_name = normal_user.supervisor.first_name,
+                        middle_name = normal_user.supervisor.middle_name,
+                        img_face=parsed_data['live_image'],
                         door=parsed_data['door_no'],
+                        pass_time=parsed_data['datetime'],
                         ip_address=parsed_data['ip_address'],
                         mac_address=parsed_data['mac_address'],
-                        employee_no=parsed_data['employee_no'],
-                        direction='entry' if parsed_data['door_no'] == 1 else 'exit' if parsed_data[
-                                                                                            'door_no'] == 2 else 'unknown',
-                        img_face=parsed_data['live_image'],
+                        direction='entry' if parsed_data['door_no'] == 1 else 'exit' if parsed_data['door_no'] == 2 else 'unknown',
                         status='approved',
-                        pass_time=parsed_data['datetime']
                     )
                 except Exception as e:
                     print(e)
@@ -406,39 +463,28 @@ class HikvisionWebhookView(APIView):
             else:
                 try:
                     NormalUserLog.objects.create(
-                        normal_user=normal_user,
+                        normal_user_id=normal_user.id,
+                        normal_user_type=normal_user.supervisor.role,
+                        zone = exam_sb.sb.zone,
+                        employee_no=employee_no,
+                        last_name=normal_user.supervisor.last_name,
+                        first_name=normal_user.supervisor.first_name,
+                        middle_name=normal_user.supervisor.middle_name,
+                        img_face=parsed_data['live_image'],
                         door=parsed_data['door_no'],
+                        pass_time=parsed_data['datetime'],
                         ip_address=parsed_data['ip_address'],
                         mac_address=parsed_data['mac_address'],
-                        employee_no=parsed_data['employee_no'],
                         direction='entry' if parsed_data['door_no'] == 1 else 'exit' if parsed_data[
                                                                                             'door_no'] == 2 else 'unknown',
-                        img_face=parsed_data['live_image'],
                         status='not_open',
-                        pass_time=parsed_data['datetime']
                     )
                 except Exception as e:
                     print(e)
                 return self._error_response("Eshik ochilmadi")
         else:
-            try:
-                NormalUserLog.objects.create(
-                    normal_user=normal_user,
-                    door=parsed_data['door_no'],
-                    ip_address=parsed_data['ip_address'],
-                    mac_address=parsed_data['mac_address'],
-                    employee_no=parsed_data['employee_no'],
-                    direction='entry' if parsed_data['door_no'] == 1 else 'exit' if parsed_data[
-                                                                                        'door_no'] == 2 else 'unknown',
-                    img_face=parsed_data['live_image'],
-                    status='denied',
-                    pass_time=parsed_data['datetime']
-                )
-            except Exception as e:
-                print(e)
-            # ✅ TO'G'IRLANGAN: return allaqachon bor edi
-            return self._deny_access_normal_user(turnstile_id, normal_user, "Bu binoga kirishga ruxsat yo'q!",
-                                                 parsed_data)
+            pass
+
 
     def _grant_access(self, exam_sb, turnstile_id, student, student_ps_data, shift_name, parsed_data):
         """Ruxsat berish va eshikni ochish"""
@@ -494,9 +540,10 @@ class HikvisionWebhookView(APIView):
             'access_granted': is_opened,
             'turnstile_id': turnstile_id,
             'turnstile_info': self._get_turnstile_info(parsed_data),
-            'student': {},
-            'ps_image': normal_user.img_b64 if normal_user.img_b64 else '',
-            'role': normal_user.role.code if normal_user.role else 'unknown',
+            'student': None,
+            'ps_image': normal_user.supervisor.img_b64 if normal_user.supervisor.img_b64 else '',
+            'role': normal_user.supervisor.role,
+            'zone': f"{normal_user.zone.region.name}",
             'event': self._get_event_info(parsed_data),
             'message': 'Ruxsat' if is_opened else 'Eshik ochilmadi',
             'timestamp': timezone.now().isoformat()
@@ -505,13 +552,12 @@ class HikvisionWebhookView(APIView):
         self._send_websocket_message(turnstile_id, ws_data)
 
         logger.info(
-            f"NormalUser {normal_user.id} - {'Kirdi' if is_opened else 'Eshik ochilmadi'} "
+            f"NormalUser {normal_user.supervisor.imei} - {'Kirdi' if is_opened else 'Eshik ochilmadi'} "
             f"- Turniket #{turnstile_id}"
         )
         return is_opened
 
-    def _deny_access(self, turnstile_id, student, student_ps_data, shift_name, parsed_data, is_same_zone,
-                     is_not_cheating):
+    def _deny_access(self, turnstile_id, student, student_ps_data, shift_name, parsed_data, is_same_zone, is_not_cheating):
         """Ruxsat rad etish"""
         if not is_not_cheating:
             message = "Chetlashtirilgan!"
@@ -544,9 +590,10 @@ class HikvisionWebhookView(APIView):
             'access_granted': False,
             'turnstile_id': turnstile_id,
             'turnstile_info': self._get_turnstile_info(parsed_data),
-            'student': {},
+            'student': None,
             'event': self._get_event_info(parsed_data),
-            'role': normal_user.role.name if normal_user.role else 'unknown',
+            'role': normal_user.supervisor.role,
+            'zone': normal_user.zone.name,
             'message': message,
             'timestamp': timezone.now().isoformat()
         }

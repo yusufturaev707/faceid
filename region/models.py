@@ -46,6 +46,7 @@ class SwingBarrier(BaseModel):
     username = models.CharField(max_length=255, verbose_name=_("Login"))
     password = models.CharField(max_length=255, verbose_name=_("Parol"))
     status = models.BooleanField(default=True, verbose_name=_("Holat"))
+    person_count = models.IntegerField(default=0, verbose_name=_("Total Persons"))
 
 
     def __str__(self):

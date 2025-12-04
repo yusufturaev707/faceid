@@ -16,6 +16,7 @@ urlpatterns += [
     path('api/v1/exam/', include('exam.urls')),
     path('api/v1/region/', include('region.urls')),
     path('api/v1/access_control/', include('access_control.urls')),
+    path('api/v1/supervisor/', include('supervisor.urls')),
 ]
 
 if settings.DEBUG:

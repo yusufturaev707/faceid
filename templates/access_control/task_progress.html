@@ -1,0 +1,42 @@
+{% extends "unfold/admin/base.html" %}
+
+{% block content %}
+<div class="card p-4">
+    <h3>Processing...</h3>
+    <div class="progress">
+        <div id="bar" class="progress-bar" style="width: 0%"></div>
+    </div>
+
+    <p id="status-text" class="mt-3"></p>
+</div>
+
+<script>
+    const taskId = "{{ request.GET.task_id }}";
+    const bar = document.getElementById("bar");
+
+    function checkStatus() {
+        fetch(`/task-status/${taskId}/`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.progress) {
+                    const { current, total } = data.progress;
+                    const percent = Math.round((current / total) * 100);
+                    bar.style.width = percent + "%";
+                    status.textContent = percent + "% Completed";
+
+                    if (percent >= 100) {
+                        setTimeout(() => {
+                            window.location.href = document.referrer;
+                        }, 1000);
+                    }
+                }
+
+                if (data.state !== "SUCCESS") {
+                    setTimeout(checkStatus, 800);
+                }
+            });
+    }
+
+    checkStatus();
+</script>
+{% endblock %}

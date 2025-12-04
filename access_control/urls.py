@@ -4,7 +4,7 @@ from access_control.views import (
 )
 
 urlpatterns = [
-    path('hikvision/face_event/', HikvisionWebhookView.as_view(), name='hikvision-webhook'),
+    path('face_event/', HikvisionWebhookView.as_view(), name='hikvision-webhook'),
     path('active-exam-list/', ActiveExamListView.as_view(), name='active-exam-list'),
     path('zone-list/', ZoneListView.as_view(), name='zone-list'),
     path('turnstile-list/', TurnstileListView.as_view(), name='turnstile-list'),

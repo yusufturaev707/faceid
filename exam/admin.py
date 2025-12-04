@@ -1,27 +1,27 @@
 import time
-
 from django.contrib import admin, messages
 from django.contrib.postgres.fields import ArrayField
 from django.db.models import QuerySet, Count, Q
 from django.http import HttpRequest
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.db import models
 from django.utils.html import format_html
 
 from unfold.admin import ModelAdmin
 from unfold.contrib.forms.widgets import WysiwygWidget, ArrayWidget, UnfoldAdminTextInputWidget, UnfoldAdminSelectWidget
 from unfold.decorators import action, display
-from django.urls import reverse_lazy
+from django.urls import reverse_lazy, path, reverse
 from django.utils.translation import gettext_lazy as _
 
 from asgiref.sync import async_to_sync
+from unfold.enums import ActionVariant
 from unfold.paginator import InfinitePaginator
 
 from exam import services
+from exam.forms import ExclusionStudentForm
 from exam.models import Exam, Test, ExamState, Student, Shift, StudentPsData, StudentLog, ExamShift, Reason, Cheating, StudentBlacklist, ExamZoneSwingBar
-from region.models import Zone, SwingBarrier
-from region.utils import is_check_healthy, delete_all_visitors_clean, push_data_main_worker, add_user_to_swing_barr, \
-    upload_single_user_face_image
+from region.models import SwingBarrier
+from region.utils import push_data_main_worker, add_user_to_swing_barr, upload_single_user_face_image
 from users.models import User
 
 admin.site.disable_action('delete_selected')
@@ -70,12 +70,24 @@ class ExamAdmin(ModelAdmin):
     list_display_links = ['id', 'test']
     list_per_page = 30
 
-    actions = ["load_data_cefr_action", "choose_swing_barrier_action", "push_swing_barrier_action"]
+    actions = ["load_data_cefr_action", "load_data_nct_action", "load_data_iiv_action", "choose_swing_barrier_action", "push_swing_barrier_action", "ready_swing_barrier_action"]
+    actions_detail = ["exclusion_student_action"]
     inlines = [ExamShiftInline]
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<int:object_id>/exclude-student/',
+                self.admin_site.admin_view(self.exclude_student_view),
+                name='exam_exam_exclude_student',
+            ),
+        ]
+        return custom_urls + urls
 
     fieldsets = (
         ('Test', {
-            'fields': ('test', 'start_date', 'finish_date',)
+            'fields': ('test', 'start_date', 'finish_date', 'hash_key')
         }),
         ('Holat', {
             'fields': ('status', 'is_finished', )
@@ -118,6 +130,7 @@ class ExamAdmin(ModelAdmin):
             qs = Student.objects.filter(exam=instance, zone__region=user.region)
         return qs.count()
 
+
     @display(description=_("Viloyat"))
     def display_region(self, instance: Exam):
         user = User.objects.get(id=self.request.user.id)
@@ -126,7 +139,7 @@ class ExamAdmin(ModelAdmin):
             region = user.region.name
         return f"{region}"
 
-    @action(description=format_html('🟢 Cefr yuklab olish'))
+    @action(description=format_html('🟢 Chet tilini bilish darajasini aniqlash test sinovi uchun talabgorlarni yuklab olish'))
     def load_data_cefr_action(self, request: HttpRequest, queryset: QuerySet):
         try:
             exam_object = queryset.first()
@@ -136,15 +149,14 @@ class ExamAdmin(ModelAdmin):
                 messages.warning(request, f"Ma'lumot yuklab olish holatida emas!")
                 return redirect("admin:exam_exam_changelist")
             t = async_to_sync(services.get_all_users_cefr)(exam_object)
-            if len(t) == 0:
+            if t == 0:
                 messages.error(request, _(f"Ma'lumot yozilmadi."))
                 return redirect(
                     reverse_lazy("admin:exam_exam_changelist")
                 )
             exam_object.status = ExamState.objects.get(key='load_data')
-            exam_object.total_taker = len(t)
+            exam_object.total_taker = t
             exam_object.save()
-            time.sleep(3)
             messages.success(request, _(f"Jarayon yakunlandi."))
             return redirect(
                 reverse_lazy("admin:exam_exam_changelist")
@@ -158,6 +170,69 @@ class ExamAdmin(ModelAdmin):
         user = User.objects.get(id=request.user.id)
         return user.is_superuser or user.is_central or user.is_admin
 
+    @action(description=format_html('🟢 Milliy sertifikat imtihoni uchun talabgorlarni yuklab olish'))
+    def load_data_nct_action(self, request: HttpRequest, queryset: QuerySet):
+        try:
+            exam_object = queryset.first()
+            state_key = exam_object.status.key
+
+            if not state_key == 'new':
+                messages.warning(request, f"Ma'lumot yuklab olish holatida emas!")
+                return redirect("admin:exam_exam_changelist")
+            t = async_to_sync(services.get_all_users_nct)(exam_object)
+            if t == 0:
+                messages.error(request, _(f"Ma'lumot yozilmadi."))
+                return redirect(
+                    reverse_lazy("admin:exam_exam_changelist")
+                )
+            exam_object.status = ExamState.objects.get(key='load_data')
+            exam_object.total_taker = t
+            exam_object.save()
+            messages.success(request, _(f"Jarayon yakunlandi."))
+            return redirect(
+                reverse_lazy("admin:exam_exam_changelist")
+            )
+        except Exception as e:
+            messages.error(request, str(e))
+            return redirect("admin:exam_exam_changelist")
+
+    @staticmethod
+    def has_load_data_nct_action_permission(request: HttpRequest):
+        user = User.objects.get(id=request.user.id)
+        return user.is_superuser or user.is_central or user.is_admin
+
+    @action(description=format_html('🟢 IIV ishga qabul qilish imtihoni uchun talabgorlarni yuklab olish'))
+    def load_data_iiv_action(self, request: HttpRequest, queryset: QuerySet):
+        try:
+            exam_object = queryset.first()
+            state_key = exam_object.status.key
+
+            if not state_key == 'new':
+                messages.warning(request, f"Ma'lumot yuklab olish holatida emas!")
+                return redirect("admin:exam_exam_changelist")
+            t = async_to_sync(services.get_all_users_iiv)(exam_object)
+            if t == 0:
+                messages.error(request, _(f"Ma'lumot yozilmadi."))
+                return redirect(
+                    reverse_lazy("admin:exam_exam_changelist")
+                )
+            exam_object.status = ExamState.objects.get(key='load_data')
+            exam_object.total_taker = t
+            exam_object.save()
+            messages.success(request, _(f"Jarayon yakunlandi."))
+            return redirect(
+                reverse_lazy("admin:exam_exam_changelist")
+            )
+        except Exception as e:
+            messages.error(request, str(e))
+            return redirect("admin:exam_exam_changelist")
+
+    @staticmethod
+    def has_load_data_iiv_action_permission(request: HttpRequest):
+        user = User.objects.get(id=request.user.id)
+        return user.is_superuser or user.is_central or user.is_admin
+
+
     @action(description=format_html("🔵 Testga turniketlarni tayyorlash"))
     def choose_swing_barrier_action(self, request: HttpRequest, queryset):
         if queryset.count() == 0:
@@ -167,54 +242,43 @@ class ExamAdmin(ModelAdmin):
             self.message_user(request, "Faqat 1 ta tadbirni tanlang!", level=messages.ERROR)
             return redirect("admin:exam_exam_changelist")
         if queryset.count() == 1:
-            sb_queryset = SwingBarrier.objects.filter(status=True, zone__region__status=True,
-                                                      zone__status=True).order_by('zone__region__number',
-                                                                                  'zone__number')
-            if sb_queryset.count() == 0:
-                self.message_user(request, "Turniket topilmadi", level=messages.WARNING)
+            exam = queryset.first()
+            if not exam.status.key == 'load_data':
+                messages.warning(request, f"Ma'lumot yuklab olinmagan!")
                 return redirect("admin:exam_exam_changelist")
-
-            swb_to_create = []
-
-            for sb in sb_queryset:
-                ip: str = sb.ip_address
-                mac: str = sb.mac_address
-                username: str = sb.username
-                password: str = sb.password
-
-                is_healthy: bool = is_check_healthy(ip, mac, username, password)
-                if not is_healthy:
-                    self.message_user(request, f"Turniket: {sb.zone.region.name}|{sb.ip_address} - aloqa mavjud emas!",
-                                      level=messages.ERROR)
-                    continue
-
-                is_deleted = delete_all_visitors_clean(ip, username, password)
-                if not is_deleted:
-                    self.message_user(request, "Xatolik yuz berdi!", level=messages.ERROR)
-                self.message_user(request, f"{ip}: muvaffaqiyatli o'chirildi!", level=messages.SUCCESS)
-
-                exam_sb_queryset = ExamZoneSwingBar.objects.filter(exam=queryset.first(), sb=sb).order_by('id')
-
-                if exam_sb_queryset.exists():
-                    ex_sb = exam_sb_queryset.first()
-                    ex_sb.unpushed_users_imei = ''
-                    ex_sb.unpushed_images_imei = ''
-                    ex_sb.real_count = 0
-                    ex_sb.pushed_user_count = 0
-                    ex_sb.pushed_image_count = 0
-                    ex_sb.err_user_count = 0
-                    ex_sb.err_image_count = 0
-                    ex_sb.status = False
-                    ex_sb.save()
-                    continue
-                swb_to_create.append(
-                    ExamZoneSwingBar(
-                        exam=queryset.first(),
-                        sb=sb,
-                        status=True
+            try:
+                sb_queryset = SwingBarrier.objects.filter(status=True, zone__region__status=True,
+                                                          zone__status=True).order_by('zone__region__number',
+                                                                                      'zone__number')
+                if sb_queryset.count() == 0:
+                    self.message_user(request, "Turniket topilmadi", level=messages.WARNING)
+                    return redirect("admin:exam_exam_changelist")
+                swb_to_create = []
+                for sb in sb_queryset:
+                    exam_sb_queryset = ExamZoneSwingBar.objects.filter(exam=queryset.first(), sb=sb).order_by('id')
+                    if exam_sb_queryset.exists():
+                        ex_sb = exam_sb_queryset.first()
+                        ex_sb.unpushed_users_imei = ''
+                        ex_sb.unpushed_images_imei = ''
+                        ex_sb.real_count = 0
+                        ex_sb.pushed_user_count = 0
+                        ex_sb.pushed_image_count = 0
+                        ex_sb.err_user_count = 0
+                        ex_sb.err_image_count = 0
+                        ex_sb.status = False
+                        ex_sb.save()
+                        continue
+                    swb_to_create.append(
+                        ExamZoneSwingBar(
+                            exam=queryset.first(),
+                            sb=sb,
+                            status=True
+                        )
                     )
-                )
-            ExamZoneSwingBar.objects.bulk_create(swb_to_create, batch_size=50, ignore_conflicts=True)
+                ExamZoneSwingBar.objects.bulk_create(swb_to_create, batch_size=50, ignore_conflicts=True)
+                self.message_user(request, f"Muvaffaqiyatli tanlandi!")
+            except Exception as e:
+                self.message_user(request, f"{e}!", level=messages.ERROR)
             return redirect("admin:exam_exam_changelist")
 
     @staticmethod
@@ -226,23 +290,125 @@ class ExamAdmin(ModelAdmin):
     def push_swing_barrier_action(self, request: HttpRequest, queryset):
         for exam in queryset:
             sb_queryset = ExamZoneSwingBar.objects.filter(exam=exam, sb__status=True).order_by('sb__zone__region__number', 'sb__zone__number')
+            if not exam.status.key == 'load_data':
+                messages.warning(request, f"Ma'lumot yuklab olinmagan!")
+                return redirect("admin:exam_exam_changelist")
             if sb_queryset.count() == 0:
                 self.message_user(request, f"Turniket topilmadi!")
-                return redirect("admin:exam_exam_changelist")
-            # todo
-            success_count_user, success_count_img, error_count_user, error_count_img = push_data_main_worker(sb_queryset)
-            self.message_user(request, f"Success_user: {success_count_user} | Success_image: {success_count_img} | Error_user: {error_count_user} | Error_img: {error_count_img}")
+            elif sb_queryset.count() == 1:
+                success_count_user, success_count_img, error_count_user, error_count_img = push_data_main_worker(sb_queryset)
+                is_warning = success_count_user == 0 or success_count_img == 0 or error_count_user != 0 or error_count_img != 0
+                if is_warning:
+                    self.message_user(request, f"Jarayon tugadi! Ammo yuklanmagan ma'lumotlar bor.")
+                else:
+                    self.message_user(request, f"Jarayon tugadi.", level=messages.SUCCESS)
+                exam.status = ExamState.objects.get(key='push_data')
+                exam.save()
+            else:
+                self.message_user(request, f"Faqat 1 ta tadbir tanlang!", level=messages.WARNING)
+        return redirect("admin:exam_exam_changelist")
 
     @staticmethod
     def has_push_swing_barrier_action_permission(request: HttpRequest):
         user = User.objects.get(id=request.user.id)
         return user.is_admin or user.is_central
 
+    @action(description=format_html("💎 Testga tayyor qilish"))
+    def ready_swing_barrier_action(self, request: HttpRequest, queryset):
+        if queryset.count() == 0:
+            messages.warning(request, f"Tadbir tanlanmadi!")
+        elif queryset.count() > 1:
+            messages.warning(request, f"Faqat 1 ta tadbir tanlang!")
+        elif queryset.count() == 1:
+            exam = queryset.first()
+            if not exam.status.key == 'push_data':
+                messages.warning(request, f"Ma'lumotlar turniketlarga yuborilgan holatida emas!")
+            else:
+                exam.status = ExamState.objects.get(key='ready')
+                exam.save()
+        return redirect("admin:exam_exam_changelist")
+
+    @staticmethod
+    def has_ready_swing_barrier_action_permission(request: HttpRequest):
+        user = User.objects.get(id=request.user.id)
+        return user.is_admin or user.is_central
+
+
     def save_model(self, request, obj, form, change):
         if not change:
             obj.status = ExamState.objects.get(key='new')
         super().save_model(request, obj, form, change)
         return
+
+    @action(description=_("Chetlashtirish"), icon="person_cancel", variant=ActionVariant.INFO,
+            permissions=["exclusion_student_action"], )
+    def exclusion_student_action(self, request, object_id):
+        return redirect(reverse_lazy("admin:exam_exam_exclude_student", args=[object_id]))
+
+    def has_exclusion_student_action_permission(self, request, object_id):
+        return request.user.is_admin or request.user.is_central or request.user.is_delegate
+
+    def exclude_student_view(self, request, object_id):
+        exam = self.get_object(request, object_id)
+        if request.method == 'POST':
+            form = ExclusionStudentForm(request.POST, request.FILES)
+            if form.is_valid():
+                imei = form.cleaned_data['imei']
+                student_qs = Student.objects.filter(exam=exam, imei=imei).order_by('e_date', 'sm')
+                if request.user.is_delegate:
+                    student_qs = student_qs.filter(zone__region=request.user.region)
+                if student_qs.count() == 0:
+                    messages.warning(request, f"Bu tadbirda topilmadi!")
+                elif student_qs.count() == 1:
+                    student = student_qs.first()
+                    if student.is_cheating:
+                        messages.warning(request, f"Bu tadbirda chetlatilgan!")
+                    else:
+                        cheating = form.save(commit=False)
+                        cheating.user = request.user
+                        cheating.student = student
+                        cheating.save()
+                        student.is_cheating = True
+
+                        is_exiting_black_list = StudentBlacklist.objects.filter(imei=imei).exists()
+                        if not is_exiting_black_list:
+                            description = form.cleaned_data['reason'].name
+                            StudentBlacklist.objects.create(imei=imei, description=description)
+                            student.is_blacklist = True
+                        student.save()
+                        self.message_user(request, "Talaba muvaffaqiyatli chetlatildi!")
+                elif student_qs.count() > 1:
+                    student_qs = student_qs.filter(is_cheating=False)
+                    if student_qs.count() == 0:
+                        messages.warning(request, f"Bu tadbirda chetlatilgan!")
+                    elif student_qs.count() == 1:
+                        student = student_qs.first()
+                        cheating = form.save(commit=False)
+                        cheating.user = request.user
+                        cheating.student = student
+                        cheating.save()
+                        student.is_cheating = True
+                        is_exiting_black_list = StudentBlacklist.objects.filter(imei=imei).exists()
+                        if not is_exiting_black_list:
+                            description = form.cleaned_data['reason'].name
+                            StudentBlacklist.objects.create(imei=imei, description=description)
+                            student.is_blacklist = True
+                        student.save()
+                        self.message_user(request, "Talaba muvaffaqiyatli chetlatildi!")
+                    else:
+                        self.message_user(request, "Nomalum xatolik!")
+                return redirect('admin:exam_exam_change', object_id)
+        else:
+            form = ExclusionStudentForm()
+
+        context = {
+            'form': form,
+            'exam': exam,
+            'opts': self.model._meta,
+            'title': f'Talabani chetlatish - {exam.test.name}: {exam.start_date} - {exam.finish_date}',
+        }
+
+        return render(request, 'admin/exam/exclude_student.html', context)
 
 
 @admin.register(Test)
@@ -529,13 +695,12 @@ class ReasonAdmin(ModelAdmin):
     list_display_links = ['id', 'name']
 
 
-
 @admin.register(Cheating)
 class CheatingAdmin(ModelAdmin):
-    list_display = ['id', 'student', 'reason', 'user', 'imei', 'pic']
-    readonly_fields = ['id']
+    list_display = ['id', 'test_name', 'test_date', 'test_sm', 'test_gr_n', 'fio', 'imei', 'reason', 'test_user', 'created_at']
+    readonly_fields = ['id', 'student']
     search_fields = ['student__imei', 'student__last_name', 'student__first_name']
-    list_display_links = ['id', 'student']
+    list_display_links = ['id', 'student', 'fio']
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -548,6 +713,46 @@ class CheatingAdmin(ModelAdmin):
         if user_region:
             return qs.filter(student__zone__region=user_region)
         return qs.none()
+
+    fieldsets = (
+        ('Student Data', {
+            'fields': ('student', )
+        }),
+        ('Chetlatish sababi', {
+            'fields': ('reason',)
+        }),
+        ('Kim tomondan chetlatilgan', {
+            'fields': ('user',)
+        }),
+        ('Rasm', {
+            'fields': ('pic',)
+        }),
+    )
+
+    @display(description='FIO')
+    def fio(self, obj):
+        return f"{obj.student.last_name} {obj.student.first_name} {obj.student.middle_name}".strip().upper() if obj.student else ''
+
+    @display(description='Test')
+    def test_name(self, obj):
+        return f"{obj.student.exam.test.name}" if obj.student else ""
+
+    @display(description='Sana')
+    def test_date(self, obj):
+        return f"{obj.student.e_date}" if obj.student else ""
+
+    @display(description='Smena')
+    def test_sm(self, obj):
+        return f"{obj.student.sm}" if obj.student else ""
+
+    @display(description='Guruh')
+    def test_gr_n(self, obj):
+        return f"{obj.student.gr_n}" if obj.student else ""
+
+    @display(description='Tizim')
+    def test_user(self, obj):
+        return f"{obj.user.username}|{obj.user.region or '-'}"
+
 
 
 @admin.register(StudentBlacklist)

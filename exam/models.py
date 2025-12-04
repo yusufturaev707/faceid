@@ -1,3 +1,4 @@
+from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.html import format_html
@@ -67,6 +68,7 @@ class ExamState(BaseModel):
 
 class Exam(BaseModel):
     test = models.ForeignKey('exam.Test', on_delete=models.SET_NULL, blank=True, null=True, verbose_name=_("Test turi"))
+    hash_key = models.CharField(max_length=120, unique=True, verbose_name=_("Kod"))
     start_date = models.DateField(verbose_name=_("Birinchi kun"))
     finish_date = models.DateField(verbose_name=_("Oxirgi kun"))
     sm_count = models.IntegerField(default=0, verbose_name=_("Kun davomidagi smena soni"))
@@ -219,9 +221,9 @@ class Reason(BaseModel):
 
 class Cheating(BaseModel):
     student = models.ForeignKey("exam.Student", on_delete=models.SET_NULL, blank=True, null=True, help_text="Student")
-    reason = models.ForeignKey('exam.Reason', on_delete=models.SET_NULL, blank=True, null=True, help_text="Chetlatish sababi")
+    reason = models.ForeignKey('exam.Reason', on_delete=models.SET_NULL, blank=True, null=True, verbose_name=_("Chetlatish sababi"))
     user = models.ForeignKey('users.User', on_delete=models.SET_NULL, blank=True, null=True, help_text="Chetlatgan vakil")
-    imei = models.CharField(max_length=14, db_index=True, verbose_name=_("Jshshir"))
+    imei = models.CharField(max_length=14, db_index=True, verbose_name=_("Jshshir"), validators=[RegexValidator(r'^\d{14}$', 'PINFL 14 ta raqamdan iborat')])
     pic = models.ImageField(upload_to='cheating/', blank=True, null=True, verbose_name=_("Rasm"))
 
     def __str__(self):
@@ -235,8 +237,8 @@ class Cheating(BaseModel):
 
 
 class StudentBlacklist(BaseModel):
-    imei = models.CharField(max_length=14, db_index=True, verbose_name=_("Jshshir"))
-    description = models.TextField(blank=True, null=True, verbose_name=_("izoh"))
+    imei = models.CharField(max_length=14, db_index=True, unique=True, verbose_name=_("Jshshir"))
+    description = models.CharField(max_length=255, blank=True, null=True, verbose_name=_("Izoh"))
 
     def __str__(self):
         return f"{self.imei}"

@@ -7,8 +7,8 @@ from PIL import Image
 
 from requests.exceptions import ConnectTimeout, RequestException
 from requests.auth import HTTPDigestAuth
-from exam.models import Student, ExamZoneSwingBar, ExamShift
 from region.contex_manager import hikvision_session
+from supervisor.models import Supervisor
 
 HEADER = {
     "Content-Type": "application/json",
@@ -40,7 +40,7 @@ def is_check_healthy(ip_address: str = None, mac_address: str = None, username: 
         print(f"{ip_address} - {e}")
         return False
 
-def get_all_visitors(ip_address: str, username: str, password: str) -> list:
+def get_all_supervisor(ip_address: str, username: str, password: str) -> list:
     """Barcha visitorlarni pagination bilan olish"""
     api_url = f"http://{ip_address}/ISAPI/AccessControl/UserInfo/Search?format=json"
     all_visitors = []
@@ -96,9 +96,9 @@ def get_all_visitors(ip_address: str, username: str, password: str) -> list:
         return all_visitors
 
 
-def delete_all_visitors_clean(ip_address, username, password):
+def delete_all_supervisor_clean(ip_address, username, password):
     delete_url = f"http://{ip_address}/ISAPI/AccessControl/UserInfo/Delete?format=json"
-    visitors = get_all_visitors(ip_address, username, password)
+    visitors = get_all_supervisor(ip_address, username, password)
 
     success_count = 0
     failed_list = []
@@ -148,24 +148,23 @@ def delete_all_visitors_clean(ip_address, username, password):
 
     return total, success_count
 
-def add_user_to_swing_barr(ip_address: str, username: str, password: str, obj: Student = None, sm_obj: ExamShift = None):
+def add_supervisor_to_swing_barr(ip_address: str, username: str, password: str, obj: Supervisor = None):
     imei: str = obj.imei
     name: str = obj.fio
-    user_type: str = 'visitor'
+    gender: str = "male" if obj.gender == 'M' else "female"
+    user_type: str = 'normal'
     door_right = "1,2"
     check_user = True
-    belong_group = "1"
     num_of_face = 0
-    test_day = obj.e_date
-
-    is_success = False
 
     valid = {
         "enable": True,
-        "beginTime": f"{test_day}T{sm_obj.access_time}",
-        "endTime": f"{test_day}T{sm_obj.expire_time}",
+        "beginTime": "2025-01-01T00:00:00",
+        "endTime": "2030-12-31T23:59:59",
         "timeType": "local",
     }
+
+    is_success = False
 
     with hikvision_session(ip_address, username, password) as session:
         base_url = f"http://{ip_address}/ISAPI/AccessControl/UserInfo/Record?format=json"
@@ -174,13 +173,9 @@ def add_user_to_swing_barr(ip_address: str, username: str, password: str, obj: S
                 "employeeNo": f"{imei}",
                 "name": f"{name}",
                 "userType": user_type,
-                "gender": "male",
-                "Valid": valid,
+                "gender": gender,
+                 "Valid": valid,
                 "doorRight": door_right,
-                "roomNumber": 5,
-                "floorNumber": 2,
-                "buildingNumber": "B",
-                "belongGroup": belong_group,
                 "numOfFace": num_of_face,
                 "checkUser": check_user
             }
@@ -195,121 +190,6 @@ def add_user_to_swing_barr(ip_address: str, username: str, password: str, obj: S
         except Exception as e:
             print(f"Turniket: {ip_address} - {imei} yuklanmadi: {res.status_code}. Error: {e}")
             return is_success
-
-def push_data_main_worker(sb_queryset):
-    success_count_user = 0
-    error_count_user = 0
-    success_count_img = 0
-    error_count_img = 0
-
-    for sb in sb_queryset:
-        zone = sb.sb.zone
-        exam = sb.exam
-        ip_address = sb.sb.ip_address
-        username = sb.sb.username
-        password = sb.sb.password
-
-        parts_day_queryset = ExamShift.objects.filter(exam=exam).order_by('id')
-        student_queryset = Student.objects.filter(
-            exam=exam,
-            zone=zone,
-            e_date__gte=exam.start_date,
-            e_date__lte=exam.finish_date
-        ).order_by('id')
-
-        n_count = student_queryset.count()
-
-        # Har bir swing barrier uchun alohida listlar
-        error_users_imei = []
-        error_images_imei = []
-        sb_success_user = 0
-        sb_error_user = 0
-        sb_success_img = 0
-        sb_error_img = 0
-
-        print(f"Swing Barrier: {sb.sb.name} - Jami talabalar: {n_count}")
-
-        for index, student in enumerate(student_queryset, 1):
-            sm: int = int(student.sm)
-            sm_obj = parts_day_queryset.filter(sm=sm).first()
-            imei = student.imei
-
-            try:
-                # 1. Avval userni qo'shish
-                is_user_added = add_user_to_swing_barr(
-                    ip_address,
-                    username,
-                    password,
-                    student,
-                    sm_obj
-                )
-
-                if is_user_added:
-                    sb_success_user += 1
-
-                    # 2. User qo'shildi, darhol rasmni yuklash
-                    time.sleep(0.2)  # Qurilma barqaror ishlashi uchun
-
-                    img_data = {"fpid": imei, "img64": student.ps_data.img_b64}
-
-                    is_image_uploaded = upload_single_user_face_image(
-                        user_data=img_data,
-                        ip_address=ip_address,
-                        username=username,
-                        password=password
-                    )
-
-                    if is_image_uploaded:
-                        sb_success_img += 1
-                        print(f"✓ [{index}/{n_count}] User {imei} va rasmi yuklandi")
-                    else:
-                        sb_error_img += 1
-                        error_images_imei.append(imei)
-                        print(f"✗ [{index}/{n_count}] User {imei} qo'shildi, lekin rasm yuklanmadi")
-                else:
-                    sb_error_user += 1
-                    error_users_imei.append(imei)
-                    print(f"✗ [{index}/{n_count}] User {imei} qo'shilmadi")
-
-            except Exception as e:
-                sb_error_user += 1
-                error_users_imei.append(imei)
-                print(f"✗ [{index}/{n_count}] Xatolik {imei}: {str(e)}")
-
-            # Har 100 ta userdan keyin progress ko'rsatish
-            if index % 100 == 0:
-                print(f"Progress: {index}/{n_count} | "
-                      f"Users: {sb_success_user}✓/{sb_error_user}✗ | "
-                      f"Images: {sb_success_img}✓/{sb_error_img}✗")
-
-            time.sleep(0.1)  # Rate limiting
-
-        # Umumiy statistikani yangilash
-        success_count_user += sb_success_user
-        error_count_user += sb_error_user
-        success_count_img += sb_success_img
-        error_count_img += sb_error_img
-
-        # Ma'lumotlar bazasini yangilash
-        sb.unpushed_users_imei = error_users_imei
-        sb.unpushed_images_imei = error_images_imei
-        sb.real_count = n_count
-        sb.pushed_user_count = sb_success_user
-        sb.pushed_image_count = sb_success_img
-        sb.err_user_count = sb_error_user
-        sb.err_image_count = sb_error_img
-        sb.save()
-
-        print(f"\n{'=' * 60}")
-        print(f"Swing Barrier {sb.sb.name} yakunlandi:")
-        print(f"  Jami: {n_count}")
-        print(f"  Users: {sb_success_user}✓ / {sb_error_user}✗")
-        print(f"  Images: {sb_success_img}✓ / {sb_error_img}✗")
-        print(f"{'=' * 60}\n")
-
-        time.sleep(0.5)  # Keyingi swing barrierga o'tishdan oldin pauza
-
-    return success_count_user, success_count_img, error_count_user, error_count_img
 
 def compress_image_to_limit(image_data, max_size_kb=200, quality_start=95):
     """
@@ -380,7 +260,7 @@ def compress_image_to_limit(image_data, max_size_kb=200, quality_start=95):
         return image_data  # Original ni qaytarish
 
 
-def upload_single_user_face_image(user_data, ip_address, username, password):
+def upload_single_supervisor_face_image(user_data, ip_address, username, password):
     base_url = f"http://{ip_address}/ISAPI/Intelligent/FDLib/FDSetUp?format=json"
     is_added = False
 

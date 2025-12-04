@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     'region.apps.RegionConfig',
     'exam.apps.ExamConfig',
     'access_control.apps.AccessControlConfig',
+    'supervisor.apps.SupervisorConfig',
 ]
 
 CRISPY_TEMPLATE_PACK = "unfold_crispy"
@@ -286,20 +287,20 @@ UNFOLD = {
                 "items": [
                     {
                         "title": _("Tadbirlar"),
-                        "icon": "school",
+                        "icon": "assignment",
                         "link": reverse_lazy("admin:exam_exam_changelist"),
                         "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
                     },
                     {
-                        "title": _("Testga biriktirilgan turniketlar"),
-                        "icon": "heart_plus",
-                        "link": reverse_lazy("admin:exam_examzoneswingbar_changelist"),
+                        "title": _("Tadbirda nazoratchilar"),
+                        "icon": "guardian",
+                        "link": reverse_lazy("admin:supervisor_eventsupervisor_changelist"),
                         "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
                     },
                     {
-                        "title": _("Testga biriktirilgan nazoratchilar"),
-                        "icon": "heart_plus",
-                        "link": reverse_lazy("admin:access_control_eventsupervisor_changelist"),
+                        "title": _("Testda turniketlar"),
+                        "icon": "door_sliding",
+                        "link": reverse_lazy("admin:exam_examzoneswingbar_changelist"),
                         "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
                     },
                     {
@@ -307,32 +308,6 @@ UNFOLD = {
                         "icon": "data_check",
                         "link": reverse_lazy("admin:exam_examstate_changelist"),
                         "permission": lambda request: request.user.is_admin,
-                    },
-                ],
-            },
-            {
-                "title": _("Xodim va nazoratchilar"),
-                "separator": False,  # Top border
-                "collapsible": False,
-                "icon": "chart-bar",
-                "items": [
-                    {
-                        "title": _("Nazoratchilar"),
-                        "icon": "badge",
-                        "link": reverse_lazy("admin:access_control_supervisor_changelist"),
-                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
-                    },
-                    {
-                        "title": _("Xodimlar"),
-                        "icon": "badge",
-                        "link": reverse_lazy("admin:access_control_staff_changelist"),
-                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
-                    },
-                    {
-                        "title": _("Binoga kirish tarixi"),
-                        "icon": "footprint",
-                        "link": reverse_lazy("admin:access_control_normaluserlog_changelist"),
-                        "permission": lambda request: request.user.is_admin or request.user.is_central,
                     },
                 ],
             },
@@ -351,7 +326,7 @@ UNFOLD = {
                         "title": _("Kirishlar tarixi"),
                         "icon": "footprint",
                         "link": reverse_lazy("admin:exam_studentlog_changelist"),
-                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
+                        "permission": lambda request: request.user.is_admin or request.user.is_central
                     },
                     {
                         "title": _("Chetlatilganlar"),
@@ -363,6 +338,26 @@ UNFOLD = {
                         "title": _("Qora ro'yxat"),
                         "icon": "skull_list",
                         "link": reverse_lazy("admin:exam_studentblacklist_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central,
+                    },
+                ],
+            },
+            {
+                "title": _("Xodim va nazoratchilar"),
+                "separator": False,  # Top border
+                "collapsible": False,
+                "icon": "chart-bar",
+                "items": [
+                    {
+                        "title": _("Nazoratchilar"),
+                        "icon": "guardian",
+                        "link": reverse_lazy("admin:supervisor_supervisor_changelist"),
+                        "permission": lambda request: request.user.is_admin or request.user.is_central or request.user.is_delegate,
+                    },
+                    {
+                        "title": _("Binoga kirish tarixi"),
+                        "icon": "footprint",
+                        "link": reverse_lazy("admin:access_control_normaluserlog_changelist"),
                         "permission": lambda request: request.user.is_admin or request.user.is_central,
                     },
                 ],
@@ -418,12 +413,12 @@ UNFOLD = {
                 ],
             },
             {
-                "title": _("Markaziy xodimlar"),
+                "title": _("Foydalanuvchilar"),
                 "separator": False,  # Top border
                 "collapsible": True,  # Collapsible group of links
                 "items": [
                     {
-                        "title": _("Xodimlar"),
+                        "title": _("Foydalanuvchilar"),
                         "icon": "badge",
                         "link": reverse_lazy("admin:users_user_changelist"),
                         "permission": lambda request: request.user.is_admin or request.user.is_central,
@@ -501,12 +496,13 @@ DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
 
 
 # Channels Layer (Redis)
+REDIS_HOST = os.environ.get('REDIS_HOST', '127.0.0.1')
+REDIS_PORT = os.environ.get('REDIS_PORT', 6379)
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [(config('REDIS_HOST', default='127.0.0.1'),
-                      config('REDIS_PORT', default=6379, cast=int))],
+            "hosts": [(REDIS_HOST, REDIS_PORT)],
         },
     },
 }
@@ -518,8 +514,20 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000']
 
-BARRIER_CONFIG = {
-    'ip': config('BARRIER_IP', default='192.0.0.64'),
-    'username': config('BARRIER_USERNAME', default='admin'),
-    'password': config('BARRIER_PASSWORD', default='Dtm@13579'),
+# Celery sozlamalari
+# CELERY_BROKER_URL = 'redis://localhost:6379/0'
+# CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+# CELERY_ACCEPT_CONTENT = ['json']
+# CELERY_TASK_SERIALIZER = 'json'
+# CELERY_RESULT_SERIALIZER = 'json'
+#
+# # Cache sozlamalari
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
+    }
 }
+#
+# SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+# SESSION_CACHE_ALIAS = 'default'

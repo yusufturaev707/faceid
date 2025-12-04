@@ -906,27 +906,27 @@
         const is_blacklist = data.student?.is_warning ? '#FF9800' : '';
         const accessClass = data.access_granted ? 'granted' : 'denied';
         const accessText = data.message;
-        const userType = data.event.user_type || ''
-        const role = data.role
-        const normalUserName = data.event.name || 'Unknown'
+        const userType = data.event.user_type || '';
+        const role = data.role;
+        const r_zone = data.zone || '';
+        const normalUserName = data.event.name || 'Unknown';
 
         let personName = 'Unknown'
         let groupNumber = '0'
         let psImage = ''
         let sm_role = ''
 
-        if(userType === 'normal' && role === 'boss'){
+        if(userType === 'normal' && role === 'staff'){
             personName = normalUserName
-            groupNumber = 'R'
+            groupNumber = 'X'
             psImage = databaseNImage
-            sm_role = 'Rahbar'
-
+            sm_role = 'Xodim'
         } else if (userType === 'normal' && role === 'supervisor'){
             personName = normalUserName
             groupNumber = 'N'
             psImage = databaseNImage
             sm_role = 'Nazoratchi'
-        } else if(userType === 'normal' && role == '') {
+        } else if(userType === 'normal' && role === '') {
             personName = normalUserName
             groupNumber = '-'
             psImage = databaseNImage
@@ -960,7 +960,7 @@
                         <div class="info-value">${sm_role}</div>
                     </div>
                     <div class="info-row">
-                        <div class="turnstile-info-text">${zone}</div>
+                        <div class="turnstile-info-text">${ userType === 'normal' ? r_zone : zone }</div>
                     </div>
                 </div>
                 <div class="photo-card" style="background-color: ${is_blacklist}">
