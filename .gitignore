@@ -10,6 +10,10 @@ exam/migrations/
 face/migrations/
 region/migrations/
 users/migrations/
+supervisor/migrations/
+access_control/migrations/
+
+del_user.py
 
 
 static/assets/
