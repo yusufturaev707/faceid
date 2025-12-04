@@ -27,10 +27,8 @@ class UserManager(BaseUserManager):
         try:
             admin_group = Group.objects.get(name='Admin')
         except Group.DoesNotExist:
-            raise ValueError(
-                    "❌ 'Admin' guruhi topilmadi! "
-                    "Avval 'python manage.py create_groups' kommandasini ishga tushiring."
-                )
+            admin_group = Group.objects.create(name='Admin')
+            print( "❌ 'Admin' guruhi topilmadi! Guruh qo'shildi.")
 
         # User yaratish
         user = self.create_user(username, password, **extra_fields)
