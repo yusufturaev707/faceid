@@ -6,12 +6,23 @@ __pycache__/
 # C extensions
 *.so
 
-exam/migrations/
-face/migrations/
-region/migrations/
-users/migrations/
-supervisor/migrations/
-access_control/migrations/
+exam/migrations/**
+!exam/migrations/__init__.py
+
+face/migrations/**
+!face/migrations/__init__.py
+
+region/migrations/**
+!region/migrations/__init__.py
+
+users/migrations/**
+!users/migrations/__init__.py
+
+supervisor/migrations/**
+!supervisor/migrations/__init__.py
+
+access_control/migrations/**
+!access_control/migrations/__init__.py
 
 del_user.py
 
